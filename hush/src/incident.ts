@@ -106,27 +106,31 @@ export async function runIncident(
     const node = state.node as keyof typeof nodes;
     if (node !== "N0" && harness === undefined)
       harness = await dependencies.createHarness(state.runId);
-    if (node === "N9" && !state.sessionId) {
-      const sessionId = await harness!.openSession();
-      state = merge(state, { sessionId });
-      await dependencies.save(state);
-    }
     const controller = new AbortController();
-    const context: Ctx = {
-      harness: (harness ?? {}) as Ctx["harness"],
-      approval: (dependencies.approval ?? {}) as Ctx["approval"],
-      probes: (dependencies.probes ?? {}) as Ctx["probes"],
-      clock: dependencies.clock,
-      log: dependencies.log(state),
-      loadPrompt: dependencies.loadPrompt,
-      signal: controller.signal,
-      sleep: dependencies.sleep,
-      writeReport: dependencies.writeReport,
-      readEvents: dependencies.readEvents,
-      page: dependencies.page
+    const operation = async () => {
+      if (node === "N9" && !state.sessionId) {
+        const sessionId = await harness!.openSession(controller.signal);
+        controller.signal.throwIfAborted();
+        state = merge(state, { sessionId });
+        await dependencies.save(state);
+      }
+      const context: Ctx = {
+        harness: (harness ?? {}) as Ctx["harness"],
+        approval: (dependencies.approval ?? {}) as Ctx["approval"],
+        probes: (dependencies.probes ?? {}) as Ctx["probes"],
+        clock: dependencies.clock,
+        log: dependencies.log(state),
+        loadPrompt: dependencies.loadPrompt,
+        signal: controller.signal,
+        sleep: dependencies.sleep,
+        writeReport: dependencies.writeReport,
+        readEvents: dependencies.readEvents,
+        page: dependencies.page
+      };
+      return nodes[node](state, context);
     };
     const patch = await dependencies.runWithTimeout(
-      nodes[node](state, context),
+      operation(),
       terminal ? LIMITS.RUN_TIMEOUT_S * 1000 : remaining,
       () => controller.abort()
     );

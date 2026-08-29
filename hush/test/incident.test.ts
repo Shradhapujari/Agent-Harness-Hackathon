@@ -140,6 +140,7 @@ describe("B4 resume runner", () => {
     );
 
     expect(openSession).toHaveBeenCalledOnce();
+    expect(openSession).toHaveBeenCalledWith(expect.any(AbortSignal));
     expect(deps.saved[0]).toMatchObject({
       node: "N9",
       sessionId: "session-created"
@@ -153,6 +154,47 @@ describe("B4 resume runner", () => {
       event: "paged_human"
     });
     expect(result.sessionId).toBe("session-created");
+  });
+
+  it("bounds and aborts session creation before an early escalation", async () => {
+    let signal: AbortSignal | undefined;
+    const page = vi.fn();
+    const deps = dependencies({});
+    deps.value.createHarness = vi.fn().mockResolvedValue({
+      openSession: vi.fn().mockImplementation((value?: AbortSignal) => {
+        signal = value;
+        return new Promise<string>(() => undefined);
+      })
+    } as unknown as HarnessClient);
+    deps.value.page = page;
+    deps.value.runWithTimeout = async (_operation, _timeoutMs, onTimeout) => {
+      onTimeout();
+      return undefined;
+    };
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      node: "N9",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 2, parseRetries: 0, verifyAttempts: 2 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(signal?.aborted).toBe(true);
+    expect(result.node).toBe("N9");
+    expect(result.sessionId).toBeUndefined();
+    expect(result.timeline.at(-1)?.event).toBe("run_timeout");
+    expect(page).not.toHaveBeenCalled();
   });
 
   it("continues a checkpoint through escalation and report with the same session", async () => {
