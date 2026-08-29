@@ -1,0 +1,71 @@
+# Every rule carries `layer` plus `rack`/`node`: the correlator (A3) keys on
+# those labels to collapse a storm down to one root cause.
+groups:
+  - name: hush-hardware
+    interval: 5s
+    rules:
+      - alert: InletTempHigh
+        expr: hush_inlet_temp_celsius > 30
+        for: 10s
+        labels:
+          severity: warning
+          layer: bmc
+          rack: R4
+          node: "{{ $labels.system }}"
+        annotations:
+          summary: "Inlet {{ $labels.system }} at {{ $value }}C"
+
+      - alert: CpuTempCritical
+        expr: hush_cpu_temp_celsius > 90
+        for: 5s
+        labels:
+          severity: critical
+          layer: bmc
+          rack: R4
+          node: "{{ $labels.system }}"
+        annotations:
+          summary: "CPU {{ $labels.system }} at {{ $value }}C"
+
+      - alert: ThermalTrip
+        expr: hush_thermal_trip == 1
+        labels:
+          severity: critical
+          layer: bmc
+          rack: R4
+          node: "{{ $labels.system }}"
+        annotations:
+          summary: "{{ $labels.system }} powered off on thermal trip"
+
+      - alert: PsuInputLost
+        expr: hush_psu_ok == 0
+        labels:
+          severity: critical
+          layer: bmc
+          rack: R4
+          node: "{{ $labels.system }}"
+        annotations:
+          summary: "PSU {{ $labels.psu }} lost on {{ $labels.system }}"
+
+      # Joined against power_on so a box that lost both PSUs or tripped thermally
+      # cannot report "hung" — that is a dead machine, and a false HostHung would
+      # mislead the correlator during a combined fault.
+      - alert: HostHung
+        expr: hush_host_hung == 1 and hush_power_on == 1
+        for: 5s
+        labels:
+          severity: critical
+          layer: bmc
+          rack: R4
+          node: "{{ $labels.system }}"
+        annotations:
+          summary: "{{ $labels.system }} powered on but not responding"
+
+      - alert: FacilityAmbientHigh
+        expr: hush_ambient_celsius > 28
+        for: 10s
+        labels:
+          severity: critical
+          layer: facility
+          rack: R4
+        annotations:
+          summary: "Rack R4 ambient {{ $value }}C — possible CRAC failure"

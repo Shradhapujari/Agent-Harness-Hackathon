@@ -1,0 +1,14 @@
+# Grouping stays deliberately coarse: the demo depends on the storm being
+# visible as ~40 separate alerts, not folded into one notification.
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: hush-null
+  group_by: ["alertname", "node"]
+  group_wait: 5s
+  group_interval: 10s
+  repeat_interval: 1h
+
+receivers:
+  - name: hush-null
