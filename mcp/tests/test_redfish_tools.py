@@ -134,7 +134,8 @@ def test_powering_a_machine_on_thaws_the_kind_node_it_runs(monkeypatch: pytest.M
         system_id=SYSTEM, reset_type="ForceRestart", reason="hung", idempotency_key="k1"
     )
     assert unpaused == ["hush-worker"]
-    assert result["unpaused_k8s_node"] == "hush-worker"
+    assert result["kind_node"] == "hush-worker"
+    assert result["unpaused"] is True
 
 
 def test_powering_a_machine_off_does_not_thaw_anything(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -146,7 +147,8 @@ def test_powering_a_machine_off_does_not_thaw_anything(monkeypatch: pytest.Monke
     result = redfish.reset_system(
         system_id=SYSTEM, reset_type="ForceOff", reason="thermal", idempotency_key="k1"
     )
-    assert result["unpaused_k8s_node"] is None
+    assert result["kind_node"] is None
+    assert result["unpaused"] is None
 
 
 def test_a_machine_with_no_kind_node_just_resets() -> None:
@@ -154,7 +156,33 @@ def test_a_machine_with_no_kind_node_just_resets() -> None:
         system_id="R4-N02", reset_type="On", reason="restore", idempotency_key="k1"
     )
     assert result["ok"] is True
-    assert result["unpaused_k8s_node"] is None
+    assert result["kind_node"] is None
+    assert result["unpaused"] is None
+
+
+def test_a_thaw_that_failed_is_reported_not_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A machine that backs no kind node and one whose thaw failed must not look alike."""
+    monkeypatch.setattr(redfish, "_kind_node", lambda system_id: "hush-worker")
+    monkeypatch.setattr(redfish, "_docker_unpause", lambda node: False)
+    result = redfish.reset_system(
+        system_id=SYSTEM, reset_type="On", reason="restore", idempotency_key="k1"
+    )
+    assert result["kind_node"] == "hush-worker"
+    assert result["unpaused"] is False
+
+
+def test_a_failed_thaw_does_not_power_cycle_the_machine_again(
+    monkeypatch: pytest.MonkeyPatch, bmc: TestClient
+) -> None:
+    """The reset already happened; retrying the key must replay, not repeat it."""
+    monkeypatch.setattr(redfish, "_kind_node", lambda system_id: "hush-worker")
+    monkeypatch.setattr(redfish, "_docker_unpause", lambda node: False)
+    args = {"system_id": SYSTEM, "reset_type": "ForceRestart", "reason": "hung", "idempotency_key": "k1"}
+    redfish.reset_system(**args)
+    sel_after_first = len(redfish.get_sel(SYSTEM, last=100)["entries"])
+    second = redfish.reset_system(**args)
+    assert second["replayed"] is True
+    assert len(redfish.get_sel(SYSTEM, last=100)["entries"]) == sel_after_first
 
 
 def test_a_different_key_is_a_different_action() -> None:

@@ -35,3 +35,19 @@ def test_an_unknown_server_is_rejected_before_anything_starts(monkeypatch: pytes
 def test_the_server_argument_is_required() -> None:
     with pytest.raises(SystemExit):
         cli.main([])
+
+
+def test_every_tool_takes_a_run_id_so_logs_line_up_with_harness_traces() -> None:
+    """Person B's prompts pass `run_id`; the MCP SDK drops arguments a tool
+    does not declare, so it has to be a real parameter on every tool."""
+    import asyncio
+    import importlib
+
+    for name in cli.SERVERS:
+        module = importlib.import_module(f"hush_mcp.{name}")
+        tools = asyncio.run(module.mcp.list_tools())
+        assert tools, f"{name} exposes no tools"
+        for tool in tools:
+            properties = tool.input_schema.get("properties", {})
+            assert "run_id" in properties, f"{name}.{tool.name} has no run_id parameter"
+            assert "run_id" not in tool.input_schema.get("required", [])

@@ -50,6 +50,21 @@ def test_clear_and_status_take_no_arguments(stub_scenarios: list[tuple[str, dict
     assert [name for name, _ in stub_scenarios] == ["clear", "status"]
 
 
+def test_a_scenario_that_could_not_run_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
+    def explode(bmc: Any, am: Any, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("could not pause hush-worker")
+
+    monkeypatch.setattr(scenarios, "hang", explode)
+    assert cli.main(["hang"]) == 1
+
+
+def test_a_clear_that_left_a_node_cordoned_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        scenarios, "clear", lambda bmc, am, nodes: {"scenario": "clear", "failed_nodes": ["hush-worker"]}
+    )
+    assert cli.main(["clear"]) == 1
+
+
 def test_a_command_is_required() -> None:
     with pytest.raises(SystemExit) as exit_info:
         cli.main([])

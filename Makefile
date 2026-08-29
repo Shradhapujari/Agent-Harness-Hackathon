@@ -10,16 +10,26 @@ KIND_CONTEXT := kind-$(KIND_CLUSTER)
 NETBOX_URL := $(or $(HUSH_NETBOX_URL),http://127.0.0.1:8000)
 KIND_NODES := $(shell grep -cE '^[[:space:]]*-[[:space:]]+role:[[:space:]]' infra/kind/cluster.yaml)
 
-.PHONY: sync up down kind-up kind-down netbox-up netbox-seed smoke test
+.PHONY: sync up down kind-up kind-down netbox-up netbox-seed mcp-up mcp-down smoke test
 
 sync:
 	uv sync --all-packages
 
+# One command for the whole simulated data center: services, cluster, inventory
+# and the five MCP URLs the harness registers. Safe to re-run — kind-up is
+# skipped when the cluster exists, NetBox seeding is idempotent, and an MCP
+# server that is already listening is left alone.
 up:
-	$(COMPOSE) up -d --build
+	$(COMPOSE) --profile netbox up -d --build
+	@kind get clusters 2>/dev/null | grep -qx $(KIND_CLUSTER) \
+	  && echo "kind cluster $(KIND_CLUSTER) already up" \
+	  || $(MAKE) kind-up
+	@$(MAKE) netbox-seed || echo "netbox not seeded; tools fall back to infra/netbox/seed.json" >&2
+	./scripts/mcp-up.sh
 
 down:
-	$(COMPOSE) down -v
+	./scripts/mcp-down.sh
+	$(COMPOSE) --profile netbox down -v
 
 # Every kubectl call is pinned to the kind context this target just created,
 # so the demo workloads can never be applied to a real cluster that happens to
@@ -58,6 +68,12 @@ netbox-up:
 
 netbox-seed: netbox-up
 	uv run python infra/netbox/seed.py
+
+mcp-up:
+	./scripts/mcp-up.sh
+
+mcp-down:
+	./scripts/mcp-down.sh
 
 smoke:
 	./scripts/smoke.sh

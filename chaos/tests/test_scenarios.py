@@ -40,6 +40,7 @@ class FakeAm:
     def __init__(self, active: list[dict[str, Any]] | None = None) -> None:
         self.posted: list[list[dict[str, Any]]] = []
         self.silences: list[tuple[list[str], int]] = []
+        self.expired_authors: list[str] = []
         self.active = active or []
 
     def post_alerts(self, alerts: list[dict[str, Any]]) -> None:
@@ -52,6 +53,10 @@ class FakeAm:
         self.silences.append((matchers, duration_s))
         return "sil-1"
 
+    def expire_silences(self, created_by: str) -> list[str]:
+        self.expired_authors.append(created_by)
+        return ["sil-0"]
+
 
 @pytest.fixture(autouse=True)
 def no_docker(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,6 +64,7 @@ def no_docker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cluster, "pause", lambda node: True)
     monkeypatch.setattr(cluster, "unpause", lambda node: True)
     monkeypatch.setattr(cluster, "uncordon", lambda node: True)
+    monkeypatch.setattr(cluster, "node_map", lambda: NODES)
 
 
 def test_crac_heats_the_rack_before_it_spikes_two_machines() -> None:
@@ -80,6 +86,32 @@ def test_crac_waits_for_the_hardware_alerts_before_posting_symptoms(monkeypatch:
     bmc, am = FakeBmc(), FakeAm()
     scenarios.crac(bmc, am, NODES)
     assert slept == [scenarios.HARDWARE_LEAD_S]
+
+
+def test_a_scenario_clears_the_silence_the_last_clear_left(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Otherwise a rerun's alerts match the old silence and never show as firing."""
+    monkeypatch.setattr(scenarios.time, "sleep", lambda s: None)
+    am = FakeAm()
+    scenarios.crac(FakeBmc(), am, NODES)
+    scenarios.hang(FakeBmc(), am)
+    assert am.expired_authors == [scenarios.SILENCE_AUTHOR, scenarios.SILENCE_AUTHOR]
+
+
+def test_hang_refuses_a_node_and_machine_that_are_not_a_pair() -> None:
+    with pytest.raises(ValueError, match="hush-worker runs on R4-N04"):
+        scenarios.hang(FakeBmc(), FakeAm(), k8s_node="hush-worker", system="R4-N07")
+
+
+def test_hang_posts_no_symptoms_when_the_node_will_not_freeze(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """NotReady alerts for a healthy node would describe an incident that is not happening."""
+    monkeypatch.setattr(cluster, "pause", lambda node: False)
+    bmc, am = FakeBmc(), FakeAm()
+    with pytest.raises(RuntimeError, match="could not pause"):
+        scenarios.hang(bmc, am)
+    assert am.posted == []
+    assert ("/chaos/unhang", {"system": "R4-N04"}) in bmc.calls
 
 
 def test_hang_wedges_the_machine_and_freezes_its_node() -> None:
@@ -133,6 +165,13 @@ def test_clear_thaws_and_uncordons_every_node(monkeypatch: pytest.MonkeyPatch) -
     scenarios.clear(FakeBmc(), FakeAm(), NODES)
     assert thawed == list(NODES)
     assert uncordoned == list(NODES)
+
+
+def test_clear_reports_a_node_it_could_not_uncordon(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A node left cordoned never gets its workload back; saying "cleared" would be a lie."""
+    monkeypatch.setattr(cluster, "uncordon", lambda node: node != "hush-worker")
+    result = scenarios.clear(FakeBmc(), FakeAm(), NODES)
+    assert result["failed_nodes"] == ["hush-worker"]
 
 
 def test_status_counts_the_storm_by_layer() -> None:

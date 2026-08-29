@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Is the simulated data center actually up? One line per component, exit 1 on any miss.
+#
+# This is the check Person B runs before blaming the agent, so it covers both
+# the services and the five MCP URLs the harness registers.
+set -uo pipefail
+
+cd "$(dirname "$0")/.."
+
+BMC_URL="${HUSH_BMC_URL:-http://127.0.0.1:8100}"
+PROM_URL="${HUSH_PROMETHEUS_URL:-http://127.0.0.1:9090}"
+AM_URL="${HUSH_ALERTMANAGER_URL:-http://127.0.0.1:9093}"
+NETBOX_URL="${HUSH_NETBOX_URL:-http://127.0.0.1:8000}"
+BMC_USER="${MOCK_BMC_USER:-root}"
+BMC_PASSWORD="${MOCK_BMC_PASSWORD:-password0}"
+
+failures=0
+printf '%-14s %-34s %s\n' COMPONENT ENDPOINT RESULT
+
+check_http() {  # name url [curl args...]
+  local name="$1" url="$2"; shift 2
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$@" "$url")"
+  if [ "$code" = "200" ]; then
+    printf '%-14s %-34s ok (200)\n' "$name" "$url"
+  else
+    printf '%-14s %-34s FAIL (%s)\n' "$name" "$url" "$code"
+    failures=$((failures + 1))
+  fi
+}
+
+check_mcp() {  # name url
+  local name="$1" url="$2" tools
+  if tools="$(uv run python scripts/mcp_tools.py "$url" 2>/dev/null)"; then
+    printf '%-14s %-34s ok (%s tools)\n' "$name" "$url" "$(wc -w <<<"$tools" | tr -d ' ')"
+  else
+    printf '%-14s %-34s FAIL (no tool list)\n' "$name" "$url"
+    failures=$((failures + 1))
+  fi
+}
+
+check_http mock-bmc     "$BMC_URL/redfish/v1"   -u "$BMC_USER:$BMC_PASSWORD"
+check_http prometheus   "$PROM_URL/-/ready"
+check_http alertmanager "$AM_URL/-/ready"
+
+# NetBox is optional: every NetBox tool falls back to infra/netbox/seed.json.
+netbox_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$NETBOX_URL/api/status/")"
+if [ "$netbox_code" = "200" ] || [ "$netbox_code" = "403" ]; then
+  printf '%-14s %-34s ok (%s)\n' netbox "$NETBOX_URL/api/status/" "$netbox_code"
+else
+  printf '%-14s %-34s skipped (fallback to seed.json)\n' netbox "$NETBOX_URL/api/status/"
+fi
+
+check_mcp alertmanager "http://127.0.0.1:9101/mcp"
+check_mcp redfish      "http://127.0.0.1:9102/mcp"
+check_mcp kubernetes   "http://127.0.0.1:9103/mcp"
+check_mcp prometheus   "http://127.0.0.1:9104/mcp"
+check_mcp netbox       "http://127.0.0.1:9105/mcp"
+
+if [ "$failures" -gt 0 ]; then
+  echo "$failures component(s) down" >&2
+  exit 1
+fi
+echo "stack is up"

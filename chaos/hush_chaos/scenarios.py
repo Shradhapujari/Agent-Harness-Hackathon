@@ -26,14 +26,17 @@ SPIKE_SYSTEMS = ("R4-N04", "R4-N07")
 #: The rack's thermal time constant is 8 s; twenty seconds is enough for the
 #: hardware rules (`for: 10s`) to fire before the symptom alerts arrive.
 HARDWARE_LEAD_S = 20.0
-#: A `clear` silence only has to outlive the alerts it covers.
+#: A `clear` silence only has to outlive the alerts it covers, and the next
+#: scenario expires it on the way in.
 SILENCE_S = (alerts.TTL_MINUTES + 1) * 60
+SILENCE_AUTHOR = "hush-chaos"
 
 
 def crac(
     bmc: BmcClient, am: AmClient, k8s_nodes: dict[str, str], lead_s: float = HARDWARE_LEAD_S
 ) -> dict[str, Any]:
     """Scenario A: the CRAC unit fails and the whole rack overheats."""
+    am.expire_silences(SILENCE_AUTHOR)
     bmc.post("/chaos/crac-failure", {"delta_c": CRAC_DELTA_C})
     for system in SPIKE_SYSTEMS:
         bmc.post("/chaos/thermal-spike", {
@@ -49,12 +52,25 @@ def crac(
 def hang(
     bmc: BmcClient, am: AmClient, k8s_node: str = "hush-worker", system: str = "R4-N04"
 ) -> dict[str, Any]:
-    """Scenario B: one host wedges. The BMC still answers; the node does not."""
+    """Scenario B: one host wedges. The BMC still answers; the node does not.
+
+    The node and the machine have to be the pair the cluster actually reports,
+    or the scenario would claim a NotReady node that is nothing to do with the
+    machine the agent is about to be shown.
+    """
+    mapped = cluster.node_map().get(k8s_node)
+    if mapped is not None and mapped != system:
+        raise ValueError(f"{k8s_node} runs on {mapped}, not {system}")
+    am.expire_silences(SILENCE_AUTHOR)
     bmc.post("/chaos/hang", {"system": system})
-    paused = cluster.pause(k8s_node)
+    if not cluster.pause(k8s_node):
+        # Posting NotReady symptoms for a node that is still healthy would
+        # describe an incident that is not happening.
+        bmc.post("/chaos/unhang", {"system": system})
+        raise RuntimeError(f"could not pause {k8s_node}; is the kind cluster up?")
     symptoms = alerts.hang_symptoms(k8s_node, system)
     am.post_alerts(symptoms)
-    return {"scenario": "hang", "system": system, "k8s_node": k8s_node, "paused": paused,
+    return {"scenario": "hang", "system": system, "k8s_node": k8s_node, "paused": True,
             "synthetic_alerts": len(symptoms)}
 
 
@@ -72,9 +88,13 @@ def clear(bmc: BmcClient, am: AmClient, k8s_nodes: dict[str, str]) -> dict[str, 
         if node.get("thermal_trip") or node.get("power") != "On":
             bmc.reset(node["system_id"], "On")
             recovered.append(node["system_id"])
+    failed: list[str] = []
     for k8s_node in k8s_nodes:
+        # unpause fails on a node that was never paused, which is not an error;
+        # a node that stays cordoned is, because the workload never comes back.
         cluster.unpause(k8s_node)
-        cluster.uncordon(k8s_node)
+        if not cluster.uncordon(k8s_node):
+            failed.append(k8s_node)
     # Alertmanager keeps the later `endsAt` when an alert is re-posted, so a
     # pushed alert cannot be shortened into resolution: silencing is the only
     # way to stop the synthetic storm on demand. Real alerts are untouched —
@@ -88,7 +108,7 @@ def clear(bmc: BmcClient, am: AmClient, k8s_nodes: dict[str, str]) -> dict[str, 
             comment="hush-chaos clear: scenario over",
         )
     return {"scenario": "clear", "powered_on": recovered, "silenced_alerts": len(stale),
-            "silence_id": silence_id, "nodes": list(k8s_nodes)}
+            "silence_id": silence_id, "nodes": list(k8s_nodes), "failed_nodes": failed}
 
 
 def status(bmc: BmcClient, am: AmClient) -> dict[str, Any]:

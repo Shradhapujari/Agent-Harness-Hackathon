@@ -8,12 +8,13 @@ or a replan replay the first result instead of power-cycling twice.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 from typing import Any
 
 import httpx
 
-from hush_mcp.common import env, guarded, idempotent, make_server
+from hush_mcp.common import env, guarded, idempotent, log, make_server
 
 PORT = 9102
 mcp = make_server("redfish")
@@ -65,7 +66,7 @@ def _sel_entries(system_id: str, last: int) -> list[dict[str, Any]]:
 
 @mcp.tool()
 @guarded
-def list_systems() -> dict[str, Any]:
+def list_systems(run_id: str = "") -> dict[str, Any]:
     """List every system id known to the BMC."""
     members = _get("/redfish/v1/Systems").get("Members") or []
     return {"systems": [str(m.get("@odata.id", "")).rsplit("/", 1)[-1] for m in members]}
@@ -73,7 +74,7 @@ def list_systems() -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def get_system(system_id: str) -> dict[str, Any]:
+def get_system(system_id: str, run_id: str = "") -> dict[str, Any]:
     """Power state, health, hang flag, rack and CPU load for one system."""
     system = _get(f"/redfish/v1/Systems/{system_id}")
     oem = (system.get("Oem") or {}).get("DCSentinel") or {}
@@ -89,7 +90,7 @@ def get_system(system_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def get_thermal(system_id: str) -> dict[str, Any]:
+def get_thermal(system_id: str, run_id: str = "") -> dict[str, Any]:
     """Inlet and CPU temperature, fan speed and CPU sensor health for one system."""
     thermal = _get(f"/redfish/v1/Chassis/{system_id}/Thermal")
     inlet = _temperature(thermal, "Inlet")
@@ -105,7 +106,7 @@ def get_thermal(system_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def get_power(system_id: str) -> dict[str, Any]:
+def get_power(system_id: str, run_id: str = "") -> dict[str, Any]:
     """Consumed watts and per-PSU state for one system."""
     power = _get(f"/redfish/v1/Chassis/{system_id}/Power")
     control = power.get("PowerControl") or [{}]
@@ -124,14 +125,14 @@ def get_power(system_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def get_sel(system_id: str, last: int = 10) -> dict[str, Any]:
+def get_sel(system_id: str, last: int = 10, run_id: str = "") -> dict[str, Any]:
     """The last `last` System Event Log entries for one system, oldest first."""
     return {"entries": _sel_entries(system_id, max(last, 1))}
 
 
 @mcp.tool()
 @guarded
-def get_fleet_summary() -> dict[str, Any]:
+def get_fleet_summary(run_id: str = "") -> dict[str, Any]:
     """One line per machine in the fleet: power, hang flag, temperatures, health.
 
     Cheaper than 12 `get_system` calls when the question is "which machines are
@@ -155,7 +156,12 @@ def get_fleet_summary() -> dict[str, Any]:
 
 
 def _kind_node(system_id: str) -> str | None:
-    """The kind container backing this machine, if one does (label `hush.io/bmc`)."""
+    """The kind container backing this machine, if one does (label `hush.io/bmc`).
+
+    No cluster is a normal state for this server — it runs against the BMC alone
+    in CI — so a lookup failure is logged and treated as "no kind node" rather
+    than failing a reset that has otherwise succeeded.
+    """
     try:
         from hush_mcp.kubernetes import api
 
@@ -163,33 +169,29 @@ def _kind_node(system_id: str) -> str | None:
             if (node.metadata.labels or {}).get("hush.io/bmc") == system_id:
                 name: str = node.metadata.name
                 return name
-    except Exception:  # noqa: BLE001 - no cluster is a normal state here
+    except Exception as exc:  # noqa: BLE001 - no cluster is a normal state here
+        log.warning(json.dumps({"tool": "reset_system", "kind_lookup": system_id, "error": str(exc)}))
         return None
     return None
 
 
-def _unpause_kind_node(system_id: str) -> str | None:
-    """Thaw the kind container a power-on is supposed to bring back.
-
-    `hush-chaos hang` freezes a kind node with `docker pause` to make it really
-    stop reporting. Powering the machine on over Redfish has to undo that too,
-    or the agent would do everything right and the node would stay NotReady.
-    """
-    node = _kind_node(system_id)
-    if node is None:
-        return None
-    return node if _docker_unpause(node) else None
-
-
 def _docker_unpause(node: str) -> bool:
-    """`docker unpause`, tolerant of a node that was never paused."""
-    result = subprocess.run(["docker", "unpause", node], capture_output=True, text=True, check=False)
+    """`docker unpause`, tolerant of a node that was never paused and of no docker."""
+    try:
+        result = subprocess.run(
+            ["docker", "unpause", node], capture_output=True, text=True, check=False, timeout=15
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.warning(json.dumps({"tool": "reset_system", "unpause": node, "error": str(exc)}))
+        return False
     return result.returncode == 0
 
 
 @mcp.tool()
 @idempotent
-def reset_system(system_id: str, reset_type: str, reason: str, idempotency_key: str) -> dict[str, Any]:
+def reset_system(
+    system_id: str, reset_type: str, reason: str, idempotency_key: str, run_id: str = ""
+) -> dict[str, Any]:
     """Power-action one system. DESTRUCTIVE — requires harness approval.
 
     Args:
@@ -197,6 +199,7 @@ def reset_system(system_id: str, reset_type: str, reason: str, idempotency_key: 
         reset_type: On | GracefulShutdown | ForceOff | GracefulRestart | ForceRestart.
         reason: why this machine, recorded in the run report.
         idempotency_key: repeat calls with the same key replay the first result.
+        run_id: the incident run this action belongs to; logged, never acted on.
     """
     if reset_type not in RESET_TYPES:
         raise ValueError(f"reset_type must be one of {', '.join(RESET_TYPES)}")
@@ -206,7 +209,12 @@ def reset_system(system_id: str, reset_type: str, reason: str, idempotency_key: 
             json={"ResetType": reset_type},
         )
         response.raise_for_status()
-    unpaused = _unpause_kind_node(system_id) if reset_type in POWER_ON_RESETS else None
+    # The machine has already been power-actioned, so nothing below may raise:
+    # a second call with the same key must replay this result rather than
+    # power-cycle the machine again. A thaw that failed is reported instead,
+    # and stays distinguishable from a machine that backs no kind node at all.
+    node = _kind_node(system_id) if reset_type in POWER_ON_RESETS else None
+    unpaused = _docker_unpause(node) if node is not None else None
     entries = _sel_entries(system_id, 1)
     return {
         "ok": True,
@@ -214,5 +222,6 @@ def reset_system(system_id: str, reset_type: str, reason: str, idempotency_key: 
         "reset_type": reset_type,
         "reason": reason,
         "sel_entry_id": entries[-1]["id"] if entries else None,
-        "unpaused_k8s_node": unpaused,
+        "kind_node": node,
+        "unpaused": unpaused,
     }

@@ -41,25 +41,32 @@ def _data(path: str, params: dict[str, Any]) -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def query(promql: str) -> dict[str, Any]:
+def query(promql: str, run_id: str = "") -> dict[str, Any]:
     """Evaluate `promql` now. Returns one value per matching series.
 
     Example: `hush_cpu_temp_celsius{rack="R4"}` — the current CPU temperature of
     every machine in rack R4.
     """
     data = _data("/api/v1/query", {"query": promql})
+    result_type = data.get("resultType", "")
+    # `scalar` and `string` answer with one [timestamp, value] pair rather than
+    # a list of series — a valid PromQL answer that must not read as an error.
+    if result_type in ("scalar", "string"):
+        pair = data.get("result") or [None, None]
+        return {"result_type": result_type, "value": pair[1], "series": [], "total": 1,
+                "truncated": False}
     result = data.get("result") or []
     series = [
         {"metric": r.get("metric", {}), "value": (r.get("value") or [None, None])[1]}
         for r in result[:MAX_SERIES]
     ]
-    return {"result_type": data.get("resultType", ""), "series": series, "total": len(result),
+    return {"result_type": result_type, "series": series, "total": len(result),
             "truncated": len(result) > MAX_SERIES}
 
 
 @mcp.tool()
 @guarded
-def query_range(promql: str, minutes: int = 10, step_s: int = 30) -> dict[str, Any]:
+def query_range(promql: str, minutes: int = 10, step_s: int = 30, run_id: str = "") -> dict[str, Any]:
     """Evaluate `promql` over the last `minutes`, one point every `step_s` seconds.
 
     Only the most recent points are returned when a series is longer than the
@@ -71,19 +78,23 @@ def query_range(promql: str, minutes: int = 10, step_s: int = 30) -> dict[str, A
         {"query": promql, "start": end - minutes * 60, "end": end, "step": step_s},
     )
     result = data.get("result") or []
-    series = [
-        {
+    series = []
+    for r in result[:MAX_RANGE_SERIES]:
+        values = r.get("values") or []
+        series.append({
             "metric": r.get("metric", {}),
-            "points": [[p[0], p[1]] for p in (r.get("values") or [])[-MAX_POINTS:]],
-        }
-        for r in result[:MAX_RANGE_SERIES]
-    ]
+            "points": [[point[0], point[1]] for point in values[-MAX_POINTS:]],
+            # Say what was dropped: a trend read from 40 of 400 points is a
+            # different claim than one read from all of them.
+            "points_total": len(values),
+            "points_dropped": max(0, len(values) - MAX_POINTS),
+        })
     return {"series": series, "total": len(result), "truncated": len(result) > MAX_RANGE_SERIES}
 
 
 @mcp.tool()
 @guarded
-def list_rules() -> dict[str, Any]:
+def list_rules(run_id: str = "") -> dict[str, Any]:
     """List the alerting rules Prometheus is evaluating, with their current state."""
     groups = _data("/api/v1/rules", {}).get("groups") or []
     return {
