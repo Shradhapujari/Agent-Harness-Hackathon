@@ -46,8 +46,11 @@ groups:
         annotations:
           summary: "PSU {{ $labels.psu }} lost on {{ $labels.system }}"
 
+      # Joined against power_on so a box that lost both PSUs or tripped thermally
+      # cannot report "hung" — that is a dead machine, and a false HostHung would
+      # mislead the correlator during a combined fault.
       - alert: HostHung
-        expr: hush_host_hung == 1
+        expr: hush_host_hung == 1 and hush_power_on == 1
         for: 5s
         labels:
           severity: critical

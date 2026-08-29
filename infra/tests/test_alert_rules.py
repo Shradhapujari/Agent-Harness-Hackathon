@@ -107,3 +107,46 @@ def test_alertmanager_grouping_stays_coarse_enough_to_show_a_storm():
     assert route["group_interval"] == "10s"
     assert route["repeat_interval"] == "1h"
     assert [r["name"] for r in cfg["receivers"]] == [route["receiver"]]
+
+
+def test_host_hung_is_joined_against_power(rules):
+    """A dead box must not report hung: the correlator would read it as a live fault."""
+    expr = rules["HostHung"]["expr"]
+    assert "hush_host_hung == 1" in expr
+    assert "hush_power_on == 1" in expr
+
+    fleet = Fleet(["T1"])
+    fleet.hang("T1")
+    fleet.psu_fail("T1", 1)
+    fleet.psu_fail("T1", 2)
+    fleet.tick(1.0)
+
+    node = fleet.snapshot()["nodes"][0]
+    assert node["power"] == "Off"
+    # Both layers hold: the simulation clears hung on power loss, and even if it
+    # did not, the rule's power_on join would keep HostHung silent.
+    assert node["hung"] is False
+
+
+def test_thermal_trip_also_clears_hung():
+    fleet = Fleet(["T1"])
+    fleet.hang("T1")
+    fleet.thermal_spike("T1", 80.0, 600.0)
+    for _ in range(400):
+        fleet.tick(1.0)
+
+    node = fleet.snapshot()["nodes"][0]
+    assert node["thermal_trip"] is True
+    assert node["power"] == "Off"
+    assert node["hung"] is False
+
+
+def test_a_genuinely_hung_host_still_alerts():
+    """The guard must not silence scenario B, which the whole approval demo rests on."""
+    fleet = Fleet(["T1"])
+    fleet.hang("T1")
+    fleet.tick(1.0)
+
+    node = fleet.snapshot()["nodes"][0]
+    assert node["power"] == "On"
+    assert node["hung"] is True

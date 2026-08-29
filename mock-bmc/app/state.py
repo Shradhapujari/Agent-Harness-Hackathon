@@ -128,10 +128,14 @@ class Fleet:
                 m.power_watts = 8.0
             if m.power == PowerState.ON and not m.psu_ok[1] and not m.psu_ok[2]:
                 m.power = PowerState.OFF
+                # A machine with no power is off, not hung — reset() already treats
+                # every power transition this way, so tick() has to agree.
+                m.hung = False
                 self.log_sel(m.system_id, "Warning", "PSUFault", "Both PSUs lost input; system powered off")
             if m.cpu_temp_c >= 97.0 and not m.thermal_trip:
                 m.thermal_trip = True
                 m.power = PowerState.OFF
+                m.hung = False
                 self.log_sel(
                     m.system_id,
                     "Critical",
