@@ -59,6 +59,17 @@ the root on the path; `python -m` from the root does.
 - **Reads are projections.** `get_system` returns the five fields an action
   depends on, not a Redfish document — the storm is already big enough.
 
+## Powering a machine back on
+
+`hush-chaos hang` freezes a kind node's container with `docker pause`, which is
+what makes Kubernetes really report NotReady while the BMC keeps answering. A
+Redfish `ForceRestart` cannot thaw a container, so `reset_system` unpauses the
+kind node itself whenever the reset is one that should leave the machine running
+(`On`, `GracefulRestart`, `ForceRestart`) and the target maps to a node through
+the `hush.io/bmc` label. Without it the agent could do everything right and the
+node would stay NotReady. The result says which node was thawed, or `null` when
+the machine backs no kind node.
+
 ## Correlation
 
 `correlate.py` is pure and has no I/O: alerts in, clusters out. It groups firing
