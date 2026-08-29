@@ -79,6 +79,10 @@ def test_pods_spread_across_hosts_and_tolerate_the_control_plane(workloads):
         assert constraint["topologyKey"] == "kubernetes.io/hostname", name
         assert constraint["maxSkew"] == 1, name
         assert constraint["whenUnsatisfiable"] == "DoNotSchedule", name
+        # Without Honor a cordoned node still counts as a domain holding zero
+        # pods, so a drained pod goes Pending instead of moving. Verified on a
+        # live cluster: with Ignore, `kubectl drain` left 3 pods unschedulable.
+        assert constraint["nodeTaintsPolicy"] == "Honor", name
         assert constraint["labelSelector"]["matchLabels"] == {"app": name}, name
 
         # kind taints the control-plane NoSchedule; without this toleration only

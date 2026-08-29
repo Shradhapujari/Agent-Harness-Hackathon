@@ -36,6 +36,12 @@ spec:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
+          # Without Honor, a cordoned node still counts as a domain holding zero
+          # pods, so every remaining node looks like it would breach maxSkew and
+          # a drained pod goes Pending instead of moving. Honor drops tainted
+          # nodes from the count, which keeps the hard 1-per-node guarantee while
+          # letting a drain actually reschedule.
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app: web
@@ -95,6 +101,12 @@ spec:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
+          # Without Honor, a cordoned node still counts as a domain holding zero
+          # pods, so every remaining node looks like it would breach maxSkew and
+          # a drained pod goes Pending instead of moving. Honor drops tainted
+          # nodes from the count, which keeps the hard 1-per-node guarantee while
+          # letting a drain actually reschedule.
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app: api
@@ -154,6 +166,12 @@ spec:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
+          # Without Honor, a cordoned node still counts as a domain holding zero
+          # pods, so every remaining node looks like it would breach maxSkew and
+          # a drained pod goes Pending instead of moving. Honor drops tainted
+          # nodes from the count, which keeps the hard 1-per-node guarantee while
+          # letting a drain actually reschedule.
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app: worker

@@ -21,6 +21,10 @@ down:
 # be the current context.
 kind-up:
 	kind create cluster --config infra/kind/cluster.yaml
+	# Workers join after the control-plane goes Ready. Applying before they
+	# arrive leaves one topology domain, so the spread constraint is trivially
+	# satisfied and every pod lands on the control-plane.
+	kubectl --context $(KIND_CONTEXT) wait --for=condition=Ready nodes --all --timeout=120s
 	kubectl --context $(KIND_CONTEXT) apply -f infra/kind/workloads.yaml
 	kubectl --context $(KIND_CONTEXT) -n demo rollout status deploy --timeout=120s
 
