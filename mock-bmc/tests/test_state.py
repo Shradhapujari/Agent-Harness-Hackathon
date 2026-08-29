@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 
 import pytest
+
 from app.state import Fleet, PowerState
 
 
