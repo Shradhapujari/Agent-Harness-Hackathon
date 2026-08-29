@@ -3,7 +3,12 @@ name = "hush-chaos"
 version = "0.1.0"
 description = "Chaos CLI driving the demo failure scenarios"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.27",
+]
+
+[project.scripts]
+hush-chaos = "hush_chaos.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

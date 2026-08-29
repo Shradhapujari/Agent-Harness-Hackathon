@@ -31,6 +31,9 @@ def bmc(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         return client
 
     monkeypatch.setattr(redfish, "_client", connect)
+    # No cluster and no docker in a unit test: a machine maps to no kind node
+    # unless a test says otherwise.
+    monkeypatch.setattr(redfish, "_kind_node", lambda system_id: None)
     return connect()
 
 
@@ -120,6 +123,38 @@ def test_replaying_a_reset_key_does_not_power_cycle_twice(bmc: TestClient) -> No
     assert second["replayed"] is True
     assert second["sel_entry_id"] == first["sel_entry_id"]
     assert len(redfish.get_sel(SYSTEM, last=100)["entries"]) == sel_after_first
+
+
+def test_powering_a_machine_on_thaws_the_kind_node_it_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`hush-chaos hang` froze the container; a power-on has to undo that too."""
+    unpaused: list[str] = []
+    monkeypatch.setattr(redfish, "_kind_node", lambda system_id: "hush-worker")
+    monkeypatch.setattr(redfish, "_docker_unpause", lambda node: bool(unpaused.append(node)) or True)
+    result = redfish.reset_system(
+        system_id=SYSTEM, reset_type="ForceRestart", reason="hung", idempotency_key="k1"
+    )
+    assert unpaused == ["hush-worker"]
+    assert result["unpaused_k8s_node"] == "hush-worker"
+
+
+def test_powering_a_machine_off_does_not_thaw_anything(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(redfish, "_kind_node", lambda system_id: "hush-worker")
+    def never(node: str) -> bool:
+        pytest.fail("a shutdown must not unpause the node")
+
+    monkeypatch.setattr(redfish, "_docker_unpause", never)
+    result = redfish.reset_system(
+        system_id=SYSTEM, reset_type="ForceOff", reason="thermal", idempotency_key="k1"
+    )
+    assert result["unpaused_k8s_node"] is None
+
+
+def test_a_machine_with_no_kind_node_just_resets() -> None:
+    result = redfish.reset_system(
+        system_id="R4-N02", reset_type="On", reason="restore", idempotency_key="k1"
+    )
+    assert result["ok"] is True
+    assert result["unpaused_k8s_node"] is None
 
 
 def test_a_different_key_is_a_different_action() -> None:

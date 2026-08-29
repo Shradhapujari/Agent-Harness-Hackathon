@@ -8,6 +8,7 @@ or a replan replay the first result instead of power-cycling twice.
 """
 from __future__ import annotations
 
+import subprocess
 from typing import Any
 
 import httpx
@@ -19,6 +20,8 @@ mcp = make_server("redfish")
 
 #: The Redfish ResetType values the simulated fleet implements.
 RESET_TYPES = ("On", "GracefulShutdown", "ForceOff", "GracefulRestart", "ForceRestart")
+#: Resets that are supposed to leave the machine running afterwards.
+POWER_ON_RESETS = ("On", "GracefulRestart", "ForceRestart")
 
 
 def _client() -> httpx.Client:
@@ -151,6 +154,39 @@ def get_fleet_summary() -> dict[str, Any]:
     }
 
 
+def _kind_node(system_id: str) -> str | None:
+    """The kind container backing this machine, if one does (label `hush.io/bmc`)."""
+    try:
+        from hush_mcp.kubernetes import api
+
+        for node in api().list_node().items:
+            if (node.metadata.labels or {}).get("hush.io/bmc") == system_id:
+                name: str = node.metadata.name
+                return name
+    except Exception:  # noqa: BLE001 - no cluster is a normal state here
+        return None
+    return None
+
+
+def _unpause_kind_node(system_id: str) -> str | None:
+    """Thaw the kind container a power-on is supposed to bring back.
+
+    `hush-chaos hang` freezes a kind node with `docker pause` to make it really
+    stop reporting. Powering the machine on over Redfish has to undo that too,
+    or the agent would do everything right and the node would stay NotReady.
+    """
+    node = _kind_node(system_id)
+    if node is None:
+        return None
+    return node if _docker_unpause(node) else None
+
+
+def _docker_unpause(node: str) -> bool:
+    """`docker unpause`, tolerant of a node that was never paused."""
+    result = subprocess.run(["docker", "unpause", node], capture_output=True, text=True, check=False)
+    return result.returncode == 0
+
+
 @mcp.tool()
 @idempotent
 def reset_system(system_id: str, reset_type: str, reason: str, idempotency_key: str) -> dict[str, Any]:
@@ -170,6 +206,7 @@ def reset_system(system_id: str, reset_type: str, reason: str, idempotency_key: 
             json={"ResetType": reset_type},
         )
         response.raise_for_status()
+    unpaused = _unpause_kind_node(system_id) if reset_type in POWER_ON_RESETS else None
     entries = _sel_entries(system_id, 1)
     return {
         "ok": True,
@@ -177,4 +214,5 @@ def reset_system(system_id: str, reset_type: str, reason: str, idempotency_key: 
         "reset_type": reset_type,
         "reason": reason,
         "sel_entry_id": entries[-1]["id"] if entries else None,
+        "unpaused_k8s_node": unpaused,
     }

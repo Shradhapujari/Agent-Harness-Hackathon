@@ -1,1 +1,1 @@
-"""Chaos CLI for the Hush demo scenarios. Populated in A5."""
+"""Chaos CLI driving the demo failure scenarios."""
