@@ -111,8 +111,10 @@ export async function runIncident(
       if (node === "N9" && !state.sessionId) {
         const sessionId = await harness!.openSession(controller.signal);
         controller.signal.throwIfAborted();
-        state = merge(state, { sessionId });
-        await dependencies.save(state);
+        const checkpoint = merge(state, { sessionId });
+        await dependencies.save(checkpoint);
+        controller.signal.throwIfAborted();
+        state = checkpoint;
       }
       const context: Ctx = {
         harness: (harness ?? {}) as Ctx["harness"],
