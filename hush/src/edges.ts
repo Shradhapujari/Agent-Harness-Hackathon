@@ -1,6 +1,7 @@
 import { LIMITS, type EdgeFn, type NodeId } from "./graph.js";
 import { toolPolicy } from "./registry.js";
 import type { Action, RunState } from "./state.js";
+import { isStorm } from "./storm.js";
 
 function nextProposed(state: RunState): Action | undefined {
   return state.actions
@@ -8,20 +9,9 @@ function nextProposed(state: RunState): Action | undefined {
     .sort((left, right) => left.rank - right.rank)[0];
 }
 
-const n0: EdgeFn = (state) => {
-  const firing = state.alerts.filter((alert) => alert.status === "firing");
-  if (firing.length < LIMITS.STORM_MIN) return "N0";
-  const observedAt = [...state.timeline]
-    .reverse()
-    .find((item) => item.nodeId === "N0")?.ts;
-  if (!observedAt) return "N0";
-  const cutoff = Date.parse(observedAt) - LIMITS.WINDOW_S * 1000;
-  const recent = firing.filter((alert) => {
-    const startedAt = Date.parse(alert.startsAt);
-    return startedAt >= cutoff && startedAt <= Date.parse(observedAt);
-  });
-  return recent.length >= LIMITS.STORM_MIN ? "N1" : "N0";
-};
+// Same predicate the node polls on, so the edge can never disagree with the
+// reason N0 returned in the first place.
+const n0: EdgeFn = (state) => (isStorm(state.alerts) ? "N1" : "N0");
 
 const n1: EdgeFn = (state) => {
   if (state.incident && state.incident.primary.length > 0) return "N2";

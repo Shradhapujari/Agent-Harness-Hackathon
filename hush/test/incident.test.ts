@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { NodeFn } from "../src/graph.js";
+import { LIMITS, type NodeFn } from "../src/graph.js";
 import { runIncident, type IncidentDependencies } from "../src/incident.js";
-import type { RunState } from "../src/state.js";
+import { RunState } from "../src/state.js";
 import type { HarnessClient } from "../src/trueforge.js";
 import { action, alert, evidence, incident } from "./helpers.js";
 
 const start = new Date("2026-08-29T12:00:00.000Z");
+
+/** A clock that walks these instants and then holds at the last one. */
+function sequence(...instants: Date[]): () => Date {
+  const queue = [...instants];
+  let current = instants[0] ?? start;
+  return () => {
+    current = queue.shift() ?? current;
+    return current;
+  };
+}
 
 function dependencies(
   nodes: NonNullable<IncidentDependencies["nodes"]>,
@@ -75,12 +85,11 @@ describe("B3 incident runner", () => {
 
   it("checkpoints an escalation when the run timeout is exceeded", async () => {
     const watch = vi.fn<NodeFn>();
-    const times = [
-      start,
-      new Date(start.getTime() + 901_000),
-      new Date(start.getTime() + 901_000)
-    ];
-    const deps = dependencies({ N0: watch }, () => times.shift() ?? times[0]!);
+    // initialState, then the loop entry, then the first budget check.
+    const deps = dependencies(
+      { N0: watch },
+      sequence(start, start, new Date(start.getTime() + 901_000))
+    );
 
     const result = await runIncident({ until: "N3" }, deps.value, vi.fn());
 
@@ -195,6 +204,200 @@ describe("B4 resume runner", () => {
     expect(result.sessionId).toBeUndefined();
     expect(result.timeline.at(-1)?.event).toBe("run_timeout");
     expect(page).not.toHaveBeenCalled();
+  });
+
+  it("gives a resumed run a full budget from the moment it resumes", async () => {
+    // I2 kills TrueForge during N2 and resumes afterwards. Charging the run for
+    // the time it spent stopped escalated it on the first iteration instead of
+    // continuing the incident.
+    const enrich = vi.fn<NodeFn>().mockResolvedValue({
+      evidence: [
+        evidence("redfish"),
+        evidence("netbox"),
+        evidence("kubernetes")
+      ]
+    });
+    const escalate = vi.fn<NodeFn>();
+    const resumedAt = new Date(start.getTime() + 3_600_000);
+    const deps = dependencies(
+      { N2: enrich, N3: async () => ({ actions: [action()] }), N9: escalate },
+      () => resumedAt
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "N3" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(enrich).toHaveBeenCalledOnce();
+    expect(escalate).not.toHaveBeenCalled();
+    expect(result.node).toBe("N4");
+    expect(result.outcome).toBeUndefined();
+    expect(result.timeline.map((item) => item.event)).toContain("run_resumed");
+    expect(result.runStartedAt).toBe(start.toISOString());
+  });
+
+  it("carries spent budget across resumes so restarts cannot extend the run", async () => {
+    // Excluding stopped time must not hand every resume a fresh full budget,
+    // or repeated restarts run past RUN_TIMEOUT_S forever (Qodo, PR #20).
+    const resumedAt = new Date(start.getTime() + 3_600_000);
+    const enrich = vi.fn<NodeFn>();
+    const escalate = vi.fn<NodeFn>().mockResolvedValue({});
+    const deps = dependencies(
+      { N2: enrich, N9: escalate },
+      sequence(resumedAt, new Date(resumedAt.getTime() + 1_000))
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      budgetSpentMs: LIMITS.RUN_TIMEOUT_S * 1000 - 500,
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(enrich).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ outcome: "escalated" });
+    expect(result.timeline.map((item) => item.event)).toContain("run_timeout");
+  });
+
+  it("never hands budget back when the wall clock steps backwards", async () => {
+    // clock() is the wall clock and NTP can step it back. A negative
+    // budgetSpentMs would fail the schema's own nonnegative check and make the
+    // checkpoint unloadable (Qodo, PR #20).
+    const deps = dependencies(
+      {
+        N2: async () => ({
+          evidence: [
+            evidence("redfish"),
+            evidence("netbox"),
+            evidence("kubernetes")
+          ]
+        }),
+        N3: async () => ({ actions: [action()] })
+      },
+      // loop entry, the run_resumed stamp, one 5 s tick, then a step back.
+      sequence(
+        start,
+        start,
+        new Date(start.getTime() + 5_000),
+        new Date(start.getTime() - 3_600_000)
+      )
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      budgetSpentMs: 1_000,
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    await runIncident({ until: "N3" }, deps.value, vi.fn(), checkpoint);
+
+    for (const saved of deps.saved) {
+      expect(saved.budgetSpentMs).toBeGreaterThanOrEqual(1_000);
+      expect(() => RunState.parse(saved)).not.toThrow();
+    }
+    // The 5 s it ran before the step back is kept; the step back adds nothing.
+    expect(deps.saved.at(-1)?.budgetSpentMs).toBe(6_000);
+  });
+
+  it("records the budget it spent on every checkpoint", async () => {
+    const deps = dependencies(
+      {
+        N2: async () => ({
+          evidence: [
+            evidence("redfish"),
+            evidence("netbox"),
+            evidence("kubernetes")
+          ]
+        }),
+        N3: async () => ({ actions: [action()] })
+      },
+      sequence(start, new Date(start.getTime() + 4_000))
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      budgetSpentMs: 10_000,
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    await runIncident({ until: "N3" }, deps.value, vi.fn(), checkpoint);
+
+    // 10 s carried in, plus the 4 s this resume spent.
+    expect(deps.saved.at(-1)?.budgetSpentMs).toBe(14_000);
+  });
+
+  it("still escalates a resumed run that runs past its own budget", async () => {
+    const resumedAt = new Date(start.getTime() + 3_600_000);
+    const enrich = vi.fn<NodeFn>();
+    const deps = dependencies(
+      { N2: enrich },
+      sequence(resumedAt, new Date(resumedAt.getTime() + 901_000))
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(enrich).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ node: "N9", outcome: "escalated" });
+    expect(result.timeline.at(-1)?.event).toBe("run_timeout");
   });
 
   it("does not page when the session checkpoint save finishes after timeout", async () => {

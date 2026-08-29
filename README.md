@@ -152,9 +152,38 @@ npm run register
 ```
 
 Set `TRUEFORGE_BASE_URL` to use a different local TrueForge URL. Keep
-`HUSH_MODEL=openai/gpt-5-6-luna`; other models are unsupported. The registration
-command loads these values from the root `.env` when it exists. Registration is
-idempotent and safe to rerun after changing the agent manifest or system prompt.
+`HUSH_MODEL=openai/gpt-5-6-luna`; other models are unsupported. `npm run
+register`, `npm run incident` and `npm run resume` all load these values from
+the root `.env` when it exists. Registration is idempotent and safe to rerun
+after changing the agent manifest or system prompt.
+
+## Running an incident
+
+`make up` brings up the simulated data center: the containers, the kind
+cluster, the five MCP servers, and a read-only `kubectl proxy` on `:8001` that
+the verification node polls directly. `make smoke` checks all of them.
+
+```bash
+uv run hush-chaos hang       # or: crac
+cd hush && npm run incident -- --scenario hang
+```
+
+The run detects the storm, triages it to one root cause, enriches it across
+Redfish, NetBox and Kubernetes, and plans. Safe actions (cordon, drain, silence)
+execute without a prompt. A `redfish.reset_system` proposal stops at the
+approval gate, which prints the root cause, the blast radius from NetBox, the
+exact tool and arguments, and the evidence ids, then waits for `allow` or
+`deny <reason>`. A denial is recorded against your username and sent back to the
+agent, which replans. `hush resume <run-id>` continues a run whose checkpoint is
+on disk — including after TrueForge itself has been restarted.
+
+Approvals run in `terminal` mode. `HUSH_APPROVAL_MODE=ui` is not wired up: a
+TrueForge UI click resumes the held tool call itself, and the SDK exposes no
+`user.tool_approval` in the session event stream to observe it with, so the
+controller cannot gate on it. See [`docs/i2-findings.md`](docs/i2-findings.md).
+
+`hush-chaos clear` puts the lab back between runs — machines on, nodes thawed
+and uncordoned, synthetic alerts resolved. Run it before each demo take.
 
 ## Working agreements
 

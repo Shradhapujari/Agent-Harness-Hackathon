@@ -12,8 +12,16 @@ const ModelVerification = z.object({
 });
 const schema = JSON.stringify({
   recovered: true,
-  summary: "string",
-  evidence: []
+  summary: "string, <=500 characters",
+  evidence: [
+    {
+      id: "string, unique within the run",
+      layer: "redfish|netbox|kubernetes|prometheus|web",
+      summary: "string, <=300 characters",
+      data: {},
+      source: "live|fallback"
+    }
+  ]
 });
 
 function alertsClear(state: Parameters<NodeFn>[0], snapshot: ProbeSnapshot) {

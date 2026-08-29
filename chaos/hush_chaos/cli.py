@@ -26,6 +26,12 @@ def _parser() -> argparse.ArgumentParser:
     hang = commands.add_parser("hang", help="scenario B: one host wedges, its BMC keeps answering")
     hang.add_argument("--node", default="hush-worker", help="kind node to freeze")
     hang.add_argument("--system", default="R4-N04", help="BMC id of the machine that node runs on")
+    hang.add_argument(
+        "--lead-s",
+        type=float,
+        default=scenarios.HARDWARE_LEAD_S,
+        help="seconds to wait for HostHung before posting the symptoms",
+    )
 
     commands.add_parser("clear", help="undo everything: chaos off, machines on, nodes thawed")
     commands.add_parser("status", help="firing alerts by layer, plus the fleet's state")
@@ -37,7 +43,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "crac":
         return scenarios.crac(bmc, am, cluster.node_map(), lead_s=args.lead_s)
     if args.command == "hang":
-        return scenarios.hang(bmc, am, k8s_node=args.node, system=args.system)
+        return scenarios.hang(bmc, am, k8s_node=args.node, system=args.system, lead_s=args.lead_s)
     if args.command == "clear":
         return scenarios.clear(bmc, am, cluster.node_map())
     return scenarios.status(bmc, am)

@@ -132,17 +132,29 @@ export const plan: NodeFn = async (state, context) => {
       status: "proposed" as const
     };
   });
+  // A replan only supersedes the plan on the table when it has something to put
+  // there. After a denial the model often re-proposes only the call it was just
+  // refused; everything is stripped, and superseding anyway threw away the
+  // escalation the first plan had already staged (a ForceRestart behind the
+  // denied GracefulRestart), leaving an empty plan that routed straight to N9
+  // instead of offering the operator the stronger action (I2).
+  const superseded =
+    actions.length > 0
+      ? state.actions
+          .filter((action) => action.status === "proposed")
+          .map((action) => ({ ...action, status: "skipped" as const }))
+      : [];
   return {
-    actions: [
-      ...state.actions
-        .filter((action) => action.status === "proposed")
-        .map((action) => ({ ...action, status: "skipped" as const })),
-      ...actions
-    ],
+    actions: [...superseded, ...actions],
     timeline: [
       timeline(context.clock(), "N3", "plan_created", {
         accepted: actions.length,
-        stripped: proposals.length !== parsed.length
+        stripped: proposals.length !== parsed.length,
+        ...(actions.length === 0
+          ? {
+              kept: state.actions.filter((a) => a.status === "proposed").length
+            }
+          : {})
       })
     ]
   };

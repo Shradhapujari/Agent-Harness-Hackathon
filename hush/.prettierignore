@@ -1,2 +1,5 @@
 coverage/
 node_modules/
+# Run artifacts: checkpoints and event logs the controller writes.
+runs/
+reports/

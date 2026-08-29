@@ -7,10 +7,16 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Same values the controller reads, so the stack and the run agree on ports.
+# shellcheck source=scripts/lib/env.sh
+. "scripts/lib/env.sh"
+hush_load_env .env
+
 BMC_URL="${HUSH_BMC_URL:-http://127.0.0.1:8100}"
 PROM_URL="${HUSH_PROMETHEUS_URL:-http://127.0.0.1:9090}"
 AM_URL="${HUSH_ALERTMANAGER_URL:-http://127.0.0.1:9093}"
 NETBOX_URL="${HUSH_NETBOX_URL:-http://127.0.0.1:8000}"
+KUBE_URL="${HUSH_KUBERNETES_URL:-http://127.0.0.1:8001}"
 BMC_USER="${MOCK_BMC_USER:-root}"
 BMC_PASSWORD="${MOCK_BMC_PASSWORD:-password0}"
 
@@ -58,6 +64,10 @@ if [ "$netbox_code" = "200" ] || [ "$netbox_code" = "403" ]; then
 else
   printf '%-14s %-34s skipped (fallback to seed.json)\n' netbox "$NETBOX_URL/api/status/"
 fi
+
+# N8 polls this directly, so a stack that passes everything else and misses
+# this one still escalates every run instead of recovering (I2).
+check_http kubernetes   "$KUBE_URL/api/v1/nodes"
 
 check_mcp alertmanager "http://127.0.0.1:9101/mcp"
 check_mcp redfish      "http://127.0.0.1:9102/mcp"

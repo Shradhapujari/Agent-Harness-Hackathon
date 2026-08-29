@@ -82,10 +82,55 @@ export async function runIncident(
   const nodes = { ...DEFAULT_NODES, ...dependencies.nodes };
   let harness: HarnessClient | undefined;
 
+  // RUN_TIMEOUT_S bounds the time this run *spends*, not the wall clock since
+  // it started. Measuring from `runStartedAt` charged the run for the hours it
+  // sat stopped, so `hush resume` after a TrueForge restart escalated on its
+  // first iteration (I2); handing every resume a fresh full budget instead
+  // would let repeated restarts run past the bound forever. So: carry the
+  // spent time in the checkpoint and give a resume only what is left.
+  // `runStartedAt` still records when the incident began, for the report.
+  //
+  // The meter only ever runs forward. `clock()` is the wall clock, which an NTP
+  // correction can step backwards; subtracting two readings of it could hand
+  // budget back, and a negative `budgetSpentMs` would fail the schema's own
+  // nonnegative check and make the checkpoint unloadable. A clock that goes
+  // backwards just stops the meter until it catches up.
+  let spentMs = state.budgetSpentMs ?? 0;
+  let lastTick = dependencies.clock().getTime();
+  const spent = () => {
+    const now = dependencies.clock().getTime();
+    if (now > lastTick) spentMs += now - lastTick;
+    lastTick = now;
+    return spentMs;
+  };
+  const remainingMs = () => LIMITS.RUN_TIMEOUT_S * 1000 - spent();
+  // Stamps the spent time onto every checkpoint without touching `state`: the
+  // N9 session checkpoint deliberately assigns `state` only after its save
+  // resolves and the abort check passes, and that ordering has to hold.
+  const stamped = (next: RunState): RunState => ({
+    ...next,
+    budgetSpentMs: spent()
+  });
+  const save = (next: RunState) => dependencies.save(stamped(next));
+
+  // Marks the restart in the report's timeline. It rides along on the next
+  // checkpoint the loop writes rather than forcing one of its own: an extra
+  // write here buys no durability, since the checkpoint being resumed from is
+  // already on disk.
+  if (checkpoint) {
+    state = merge(state, {
+      timeline: [
+        {
+          ts: dependencies.clock().toISOString(),
+          nodeId: state.node,
+          event: "run_resumed"
+        }
+      ]
+    });
+  }
+
   while (state.node !== "DONE") {
-    const remaining =
-      LIMITS.RUN_TIMEOUT_S * 1000 -
-      (dependencies.clock().getTime() - Date.parse(state.runStartedAt!));
+    const remaining = remainingMs();
     const terminal = state.node === "N9" || state.node === "N10";
     if (remaining <= 0 && !terminal) {
       state = merge(state, {
@@ -99,7 +144,7 @@ export async function runIncident(
           }
         ]
       });
-      await dependencies.save(state);
+      await save(state);
       break;
     }
 
@@ -112,7 +157,7 @@ export async function runIncident(
         const sessionId = await harness!.openSession(controller.signal);
         controller.signal.throwIfAborted();
         const checkpoint = merge(state, { sessionId });
-        await dependencies.save(checkpoint);
+        await save(checkpoint);
         controller.signal.throwIfAborted();
         state = checkpoint;
       }
@@ -147,7 +192,7 @@ export async function runIncident(
             }
           ]
         });
-        await dependencies.save(state);
+        await save(state);
         break;
       }
       state = merge(state, {
@@ -161,16 +206,17 @@ export async function runIncident(
           }
         ]
       });
-      await dependencies.save(state);
+      await save(state);
       break;
     }
     state = merge(state, patch);
     const completed = node;
     state = { ...state, node: EDGES[completed](state) };
-    await dependencies.save(state);
+    await save(state);
     if (completed === options.until) break;
   }
 
+  state = stamped(state);
   write({
     runId: state.runId,
     incident: state.incident,
