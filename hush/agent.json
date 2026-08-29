@@ -1,0 +1,79 @@
+{
+  "name": "hush-operator",
+  "manifest": {
+    "model": {
+      "name": "openai/gpt-5.6-luna",
+      "params": {
+        "max_tokens": 8192,
+        "parallel_tool_calls": true
+      }
+    },
+    "config": {
+      "iterationLimit": 60,
+      "askUserQuestions": { "enabled": false },
+      "dynamicSubAgents": { "enabled": true },
+      "generativeUi": { "enabled": true },
+      "sandbox": { "enabled": true, "fileDownloads": true },
+      "contextManagement": {
+        "compaction": {
+          "enabled": true,
+          "trigger": { "type": "input_tokens", "value": 80000 }
+        },
+        "largeToolResponse": { "enabled": true }
+      }
+    },
+    "mcpServers": [
+      {
+        "name": "alertmanager",
+        "enableTools": [
+          "list_alerts",
+          "get_alert_groups",
+          "correlate_alerts",
+          "silence_alerts"
+        ],
+        "requireApprovalForTools": [],
+        "preload": true
+      },
+      {
+        "name": "redfish",
+        "enableTools": [
+          "list_systems",
+          "get_system",
+          "get_thermal",
+          "get_power",
+          "get_sel",
+          "get_fleet_summary",
+          "reset_system"
+        ],
+        "requireApprovalForTools": ["reset_system"],
+        "preload": true
+      },
+      {
+        "name": "kubernetes",
+        "enableTools": [
+          "list_nodes",
+          "get_node",
+          "list_pods",
+          "cordon_node",
+          "drain_node",
+          "uncordon_node"
+        ],
+        "requireApprovalForTools": [],
+        "preload": false
+      },
+      {
+        "name": "prometheus",
+        "enableTools": ["@read-only"],
+        "requireApprovalForTools": [],
+        "preload": false
+      },
+      {
+        "name": "netbox",
+        "enableTools": ["@read-only"],
+        "requireApprovalForTools": [],
+        "preload": false
+      }
+    ],
+    "skills": [{ "name": "hush-triage" }]
+  }
+}
