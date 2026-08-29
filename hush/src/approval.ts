@@ -1,7 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { userInfo } from "node:os";
 import { stdin, stdout } from "node:process";
-import { TrueForge } from "@truefoundry/trueforge-sdk";
 
 import type { ApprovalBridge } from "./graph.js";
 
@@ -81,57 +80,17 @@ export class UiApproval implements ApprovalBridge {
   }
 }
 
-function trueForgeUiPoller(): UiDecisionPoller {
-  const client = new TrueForge({
-    baseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://localhost:8790",
-    timeoutInSeconds: 900
-  });
-  return async (request, signal) => {
-    while (!signal.aborted) {
-      const page = await client.sessions.listTurns(
-        request.sessionId,
-        undefined,
-        { abortSignal: signal }
-      );
-      const event = page.data
-        .flatMap((turn) => turn.input ?? [])
-        .find(
-          (item) =>
-            item.type === "user.tool_approval" &&
-            item.toolCallId === request.pending.toolCallId
-        );
-      if (event?.type === "user.tool_approval") {
-        const allow = event.approval.status === "allow";
-        return {
-          allow,
-          by: "human:trueforge-ui",
-          at: new Date().toISOString(),
-          ...(!allow && "reason" in event.approval
-            ? { reason: event.approval.reason }
-            : {})
-        };
-      }
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(resolve, 1_000);
-        signal.addEventListener(
-          "abort",
-          () => {
-            clearTimeout(timer);
-            reject(signal.reason);
-          },
-          { once: true }
-        );
-      });
-    }
-    throw signal.reason ?? new Error("approval timeout");
-  };
-}
-
 export function createApprovalBridge(
   mode = process.env.HUSH_APPROVAL_MODE ?? "terminal",
   uiPoller?: UiDecisionPoller
 ): ApprovalBridge {
   if (mode === "terminal") return new TerminalApproval();
-  if (mode === "ui") return new UiApproval(uiPoller ?? trueForgeUiPoller());
+  if (mode === "ui" && uiPoller) return new UiApproval(uiPoller);
+  if (mode === "ui") {
+    stdout.write(
+      "TrueForge UI clicks resume tools before controller checkpointing; using terminal approval mode.\n"
+    );
+    return new TerminalApproval();
+  }
   throw new Error(`unknown HUSH_APPROVAL_MODE: ${mode}`);
 }

@@ -26,6 +26,19 @@ function alertsClear(state: Parameters<NodeFn>[0], snapshot: ProbeSnapshot) {
   );
 }
 
+function kubernetesNode(
+  state: Parameters<NodeFn>[0],
+  systemId: string
+): string {
+  return (
+    state.alerts.find(
+      (alert) =>
+        alert.labels.node === systemId &&
+        typeof alert.labels.k8s_node === "string"
+    )?.labels.k8s_node ?? systemId
+  );
+}
+
 export function recovered(
   state: Parameters<NodeFn>[0],
   current: ProbeSnapshot,
@@ -42,7 +55,7 @@ export function recovered(
       (node) =>
         node!.power === "On" &&
         !node!.hung &&
-        current.readyNodes.includes(node!.systemId)
+        current.readyNodes.includes(kubernetesNode(state, node!.systemId))
     );
   if (state.incident.rootCause.kind === "crac_failure") {
     const prior = new Map(

@@ -114,8 +114,25 @@ describe("B4 verification and report", () => {
   });
 
   it("uses code-owned recovery predicates and requires falling CRAC temperatures", () => {
-    const hang = state({ incident, alerts: [alert()] });
-    expect(recovered(hang, snapshot())).toBe(true);
+    const hang = state({
+      incident,
+      alerts: [
+        alert(),
+        alert({
+          fingerprint: "fp-k8s",
+          name: "KubeNodeNotReady",
+          labels: {
+            layer: "kubernetes",
+            node: "R4-N04",
+            k8s_node: "hush-worker"
+          }
+        })
+      ]
+    });
+    expect(recovered(hang, snapshot({ readyNodes: ["hush-worker"] }))).toBe(
+      true
+    );
+    expect(recovered(hang, snapshot({ readyNodes: ["R4-N04"] }))).toBe(false);
     expect(recovered(hang, snapshot({ firingAlerts: ["fp-1"] }))).toBe(false);
 
     const crac = state({

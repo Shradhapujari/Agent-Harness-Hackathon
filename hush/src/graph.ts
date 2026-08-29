@@ -57,7 +57,13 @@ export interface Ctx {
   sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
   writeReport?: (state: RunState, markdown: string) => Promise<void>;
   readEvents?: (state: RunState) => Promise<unknown[]>;
-  page?: (message: string) => void;
+  page?: (record: {
+    graph_id: string;
+    run_id: string;
+    node_id: "N9";
+    session_id: string | null;
+    message: string;
+  }) => void;
 }
 
 export const LIMITS = {

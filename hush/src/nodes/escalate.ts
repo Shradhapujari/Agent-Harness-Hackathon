@@ -3,9 +3,17 @@ import { timeline } from "./shared.js";
 
 export const escalate: NodeFn = async (state, context) => {
   const message = `PAGE incident ${state.runId}: automated recovery exhausted`;
-  (context.page ?? console.error)(message);
+  const record = {
+    graph_id: state.graphId,
+    run_id: state.runId,
+    node_id: "N9" as const,
+    session_id: state.sessionId ?? null,
+    message
+  };
+  (context.page ?? ((value) => console.error(JSON.stringify(value))))(record);
+  context.log("N9", "paged_human", record);
   return {
     outcome: "escalated",
-    timeline: [timeline(context.clock(), "N9", "paged_human", message)]
+    timeline: [timeline(context.clock(), "N9", "paged_human", record)]
   };
 };

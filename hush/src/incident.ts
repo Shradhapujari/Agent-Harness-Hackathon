@@ -86,7 +86,8 @@ export async function runIncident(
     const remaining =
       LIMITS.RUN_TIMEOUT_S * 1000 -
       (dependencies.clock().getTime() - Date.parse(state.runStartedAt!));
-    if (remaining <= 0) {
+    const terminal = state.node === "N9" || state.node === "N10";
+    if (remaining <= 0 && !terminal) {
       state = merge(state, {
         node: "N9",
         outcome: "escalated",
@@ -121,7 +122,7 @@ export async function runIncident(
     };
     const patch = await dependencies.runWithTimeout(
       nodes[node](state, context),
-      remaining,
+      terminal ? LIMITS.RUN_TIMEOUT_S * 1000 : remaining,
       () => controller.abort()
     );
     if (patch === undefined) {
