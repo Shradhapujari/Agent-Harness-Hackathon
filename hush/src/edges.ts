@@ -50,7 +50,9 @@ const n3: EdgeFn = (state) => {
 };
 
 const n4: EdgeFn = (state) => {
-  const action = nextProposed(state);
+  const action =
+    state.actions.find((item) => item.id === state.pendingActionId) ??
+    nextProposed(state);
   if (!action) return "N8";
   const policy = toolPolicy(action.tool);
   if (!policy || policy.kind === "read") return "N9";

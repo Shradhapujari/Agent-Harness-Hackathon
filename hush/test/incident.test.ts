@@ -109,3 +109,77 @@ describe("B3 incident runner", () => {
     expect(deps.saved.at(-1)?.timeline.at(-1)?.event).toBe("run_timeout");
   });
 });
+
+describe("B4 resume runner", () => {
+  it("continues a checkpoint through escalation and report with the same session", async () => {
+    const report = vi.fn<NodeFn>().mockResolvedValue({});
+    const deps = dependencies({
+      N9: async () => ({ outcome: "escalated" }),
+      N10: report
+    });
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      sessionId: "session-existing",
+      node: "N9",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 2, parseRetries: 0, verifyAttempts: 2 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(result).toMatchObject({
+      node: "DONE",
+      sessionId: "session-existing",
+      outcome: "escalated"
+    });
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "session-existing" }),
+      expect.anything()
+    );
+    expect(deps.value.createHarness).toHaveBeenCalledWith("inc-20260829-abcd");
+  });
+
+  it("allows expired checkpoints to complete terminal nodes", async () => {
+    const expired = new Date(start.getTime() + 901_000);
+    const report = vi.fn<NodeFn>().mockResolvedValue({});
+    const deps = dependencies(
+      {
+        N9: async () => ({ outcome: "escalated" }),
+        N10: report
+      },
+      () => expired
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      sessionId: "session-existing",
+      node: "N9",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 2, parseRetries: 0, verifyAttempts: 2 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(result.node).toBe("DONE");
+    expect(report).toHaveBeenCalledOnce();
+  });
+});
