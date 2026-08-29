@@ -16,3 +16,15 @@ __pycache__/
 
 # Runtime artifacts
 runs/
+reports/*.md
+!reports/samples/
+!reports/samples/*.md
+*.sqlite
+*.sqlite3
+*.log
+
+# Node and local tooling
+node_modules/
+coverage/
+.uv-cache/
+.local/
