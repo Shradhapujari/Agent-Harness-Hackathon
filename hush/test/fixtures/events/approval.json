@@ -1,0 +1,11 @@
+{
+  "type": "tool.approval_required",
+  "id": "id-1",
+  "threadId": "main",
+  "toolCalls": [
+    {
+      "id": "id-2",
+      "sourceEventId": "sourceEventId-3"
+    }
+  ]
+}

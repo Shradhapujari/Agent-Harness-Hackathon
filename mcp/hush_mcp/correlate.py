@@ -48,20 +48,42 @@ def _rank(a: Alert) -> int:
     return _LAYER_RANK.get(a["labels"].get("layer", ""), _UNRANKED)
 
 
+def _window_start(firing: list[Alert], window_s: int) -> datetime:
+    """The start of the ``window_s`` burst that holds the most alerts.
+
+    Ties go to the earliest burst, so a single storm still opens its window on
+    its own first alert.
+    """
+    best = _ts(firing[0])
+    best_count = -1
+    for candidate in firing:
+        start = _ts(candidate)
+        count = sum(1 for a in firing if 0 <= (_ts(a) - start).total_seconds() <= window_s)
+        if count > best_count:
+            best, best_count = start, count
+    return best
+
+
 def correlate(alerts: list[Alert], window_s: int = 120) -> Correlation:
-    """Group firing alerts by rack within ``window_s`` of the first one.
+    """Group firing alerts by rack within ``window_s`` of the storm's start.
 
     Clusters are ordered by size then by earliest ``first_seen``, so the biggest
-    simultaneous burst leads. Alerts that start after the window has closed are
-    noise: a storm is what fires *together*.
+    simultaneous burst leads. Alerts outside the window are noise: a storm is
+    what fires *together*.
+
+    The window opens on the burst that holds the most alerts, not on the oldest
+    alert on the bus. Alertmanager keeps the original ``startsAt`` when a
+    fingerprint is re-posted, so a handful of alerts left over from an earlier
+    incident carry old timestamps into a fresh storm; anchoring on them would
+    file the entire live storm as noise (found at I1).
     """
     firing = sorted((a for a in alerts if a["status"] == "firing"), key=_ts)
     if not firing:
         return {"clusters": [], "noise": []}
-    t0 = _ts(firing[0])
-    in_window = [a for a in firing if (_ts(a) - t0).total_seconds() <= window_s]
+    t0 = _window_start(firing, window_s)
+    in_window = [a for a in firing if 0 <= (_ts(a) - t0).total_seconds() <= window_s]
     windowed = {a["fingerprint"] for a in in_window}
-    late = [a["fingerprint"] for a in firing if a["fingerprint"] not in windowed]
+    outside = [a["fingerprint"] for a in firing if a["fingerprint"] not in windowed]
 
     by_rack: dict[str, list[Alert]] = {}
     for a in in_window:
@@ -70,7 +92,10 @@ def correlate(alerts: list[Alert], window_s: int = 120) -> Correlation:
     clusters: list[Cluster] = []
     for rack, group in by_rack.items():
         layers = Counter(a["labels"].get("layer", "unknown") for a in group)
-        lead = min(group, key=lambda a: (_ts(a), _rank(a)))
+        # Layer before time: a facility failure is the cause even when a machine
+        # it cooked trips first. The Prometheus rules make that the normal case
+        # — FacilityAmbientHigh carries `for: 10s`, ThermalTrip carries none.
+        lead = min(group, key=lambda a: (_rank(a), _ts(a)))
         clusters.append(
             {
                 "key": {"rack": rack},
@@ -90,4 +115,4 @@ def correlate(alerts: list[Alert], window_s: int = 120) -> Correlation:
         return len(c["fingerprints"]) == 1 and c["key"]["rack"] == "unknown"
 
     orphans = [c["fingerprints"][0] for c in clusters if _orphan(c)]
-    return {"clusters": [c for c in clusters if not _orphan(c)], "noise": late + orphans}
+    return {"clusters": [c for c in clusters if not _orphan(c)], "noise": outside + orphans}

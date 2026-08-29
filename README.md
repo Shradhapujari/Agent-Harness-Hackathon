@@ -56,7 +56,7 @@ The complete node and edge contracts are in
 ## Technology
 
 Hush uses TrueForge in local mode with **OpenAI GPT-5.6-Luna only**
-(`openai/gpt-5.6-luna`). There is no alternate-model fallback. The controller
+(`openai/gpt-5-6-luna`). There is no alternate-model fallback. The controller
 is strict TypeScript; the mock BMC and planned MCP services are Python 3.12.
 The demo stack uses FastAPI/Redfish, Prometheus, Alertmanager, a three-node
 kind cluster, NetBox, and remote streamable-HTTP MCP servers.
@@ -107,7 +107,7 @@ cp .env.example .env
 ```
 
 Replace only the safe placeholders in `.env`. Keep
-`HUSH_MODEL=openai/gpt-5.6-luna`; Hush supports no other model. Never commit
+`HUSH_MODEL=openai/gpt-5-6-luna`; Hush supports no other model. Never commit
 `.env` or an API key.
 
 Run the checks that are available today:
@@ -136,13 +136,14 @@ npx @truefoundry/trueforge@latest
 ```
 
 Open `http://localhost:8790`, add an OpenAI API key under **Settings →
-Models**, and select `openai/gpt-5.6-luna`. Do not add a model fallback. Daytona
-is the planned sandbox provider.
+Models**, and select `openai/gpt-5-6-luna`. Do not add a model fallback. Daytona
+is the planned sandbox provider. If the provider dialog renders empty, configure
+it over the API instead: put the key in `~/.hush-openai-key` and run
+`uv run python scripts/configure_openai.py`, which never writes it to the repo.
 
-In **Settings → Skills**, choose **Import from GitHub** and import this public
-repository with the path `skills/hush-triage`. This one-time OAuth-backed step
-is intentionally not automated. With the five local MCP servers running,
-register or update their connectors and the `hush-operator` agent:
+With the five local MCP servers running, register or update the connectors, the
+`hush-triage` skill and the `hush-operator` agent — the skill lives at a public
+GitHub path, so it imports over REST with no OAuth step:
 
 ```bash
 cd hush
@@ -151,7 +152,7 @@ npm run register
 ```
 
 Set `TRUEFORGE_BASE_URL` to use a different local TrueForge URL. Keep
-`HUSH_MODEL=openai/gpt-5.6-luna`; other models are unsupported. The registration
+`HUSH_MODEL=openai/gpt-5-6-luna`; other models are unsupported. The registration
 command loads these values from the root `.env` when it exists. Registration is
 idempotent and safe to rerun after changing the agent manifest or system prompt.
 

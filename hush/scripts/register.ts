@@ -44,6 +44,21 @@ for (const manifest of servers) {
   console.log(`registered connector ${manifest.name}`);
 }
 
+// The skill is a public GitHub path, so it imports over REST with no OAuth
+// (confirmed at I1) — a stranger still runs one command.
+await client.settings.skills.createOrUpdate({
+  manifest: {
+    type: "git",
+    name: "hush-triage",
+    url: "https://github.com/Shradhapujari/Agent-Harness-Hackathon",
+    path: "skills/hush-triage",
+    ref: process.env.HUSH_SKILL_REF ?? "main",
+    description:
+      "Runbook for data-center triage: which layer answers which question, root-cause mapping, remediation ladder."
+  }
+});
+console.log("registered skill hush-triage");
+
 const agent = JSON.parse(
   await readFile(new URL("../agent.json", import.meta.url), "utf8")
 ) as TrueForgeApi.CreateAgentRequest;
@@ -52,7 +67,7 @@ agent.manifest.instructions = await readFile(
   "utf8"
 );
 const model = process.env.HUSH_MODEL ?? agent.manifest.model.name;
-if (model !== "openai/gpt-5.6-luna")
+if (model !== "openai/gpt-5-6-luna")
   throw new Error(`unsupported HUSH_MODEL: ${model}`);
 agent.manifest.model.name = model;
 

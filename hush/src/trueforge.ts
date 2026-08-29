@@ -113,19 +113,23 @@ export class Harness implements HarnessClient {
           result.text += event.content ?? "";
         if (event.type === "model.message")
           for (const call of event.toolCalls ?? [])
-            calls.set(call.id, {
-              tool: call.toolInfo.name,
-              args: parseToolArguments(call.function.arguments)
-            });
+            calls.set(
+              call.id,
+              unwrapToolCall(
+                call.toolInfo,
+                parseToolArguments(call.function.arguments)
+              )
+            );
         if (event.type === "tool.approval_required") {
           const reference = event.toolCalls[0];
           if (reference === undefined)
             throw new Error("approval event contained no tool call references");
-          const call = calls.get(reference.id);
-          if (call === undefined)
-            throw new Error(
-              `approval event referenced unknown tool call ${reference.id}`
-            );
+          // The streamed `model.message` carries no tool calls: only the
+          // stored event does (confirmed at I1), so an approval has to be
+          // resolved against the session's event list.
+          const call =
+            calls.get(reference.id) ??
+            (await this.resolveToolCall(sessionId, reference, signal));
           result.pendingApproval = {
             threadId: event.threadId,
             toolCallId: reference.id,
@@ -141,6 +145,68 @@ export class Harness implements HarnessClient {
       throw signal.reason ?? error;
     }
   }
+  /** Tool name and arguments for a call the approval event only references. */
+  private async resolveToolCall(
+    sessionId: string,
+    reference: { id: string; sourceEventId?: string },
+    signal?: AbortSignal
+  ): Promise<{ tool: string; args: unknown }> {
+    signal?.throwIfAborted();
+    const response = await this.client.sessions.listEvents(
+      sessionId,
+      undefined,
+      { abortSignal: signal }
+    );
+    for (const { event } of response.data) {
+      if (
+        event.type !== "model.message" ||
+        event.id !== reference.sourceEventId
+      )
+        continue;
+      for (const call of event.toolCalls ?? []) {
+        if (call.id !== reference.id) continue;
+        return unwrapToolCall(
+          call.toolInfo,
+          parseToolArguments(call.function.arguments)
+        );
+      }
+    }
+    throw new Error(
+      `approval event referenced unknown tool call ${reference.id}`
+    );
+  }
+}
+
+/**
+ * The tool the approval gate is holding, named the way `registry.ts` names it.
+ *
+ * TrueForge reports a call in one of two shapes (both recorded at I1): an MCP
+ * call carries its server in `toolInfo`, while a call made through dynamic
+ * discovery is wrapped in TrueForge's own `call_tool` function and names the
+ * server and tool inside the arguments.
+ */
+export function unwrapToolCall(
+  info: { name: string; serverName?: string },
+  args: unknown
+): { tool: string; args: unknown } {
+  if (info.serverName !== undefined)
+    return { tool: `${info.serverName}.${info.name}`, args };
+  if (info.name !== "call_tool" || typeof args !== "object" || args === null)
+    return { tool: info.name, args };
+  const wrapper = args as {
+    mcp_server?: unknown;
+    tool_name?: unknown;
+    input?: unknown;
+  };
+  if (
+    typeof wrapper.mcp_server !== "string" ||
+    typeof wrapper.tool_name !== "string"
+  )
+    return { tool: info.name, args };
+  return {
+    tool: `${wrapper.mcp_server}.${wrapper.tool_name}`,
+    args: wrapper.input
+  };
 }
 
 export class FakeHarness implements HarnessClient {

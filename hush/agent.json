@@ -2,7 +2,7 @@
   "name": "hush-operator",
   "manifest": {
     "model": {
-      "name": "openai/gpt-5.6-luna",
+      "name": "openai/gpt-5-6-luna",
       "params": {
         "max_tokens": 8192,
         "parallel_tool_calls": true
@@ -10,16 +10,30 @@
     },
     "config": {
       "iterationLimit": 60,
-      "askUserQuestions": { "enabled": false },
-      "dynamicSubAgents": { "enabled": true },
-      "generativeUi": { "enabled": true },
-      "sandbox": { "enabled": true, "fileDownloads": true },
+      "askUserQuestions": {
+        "enabled": false
+      },
+      "dynamicSubAgents": {
+        "enabled": true
+      },
+      "generativeUi": {
+        "enabled": true
+      },
+      "sandbox": {
+        "enabled": true,
+        "fileDownloads": true
+      },
       "contextManagement": {
         "compaction": {
           "enabled": true,
-          "trigger": { "type": "input_tokens", "value": 80000 }
+          "trigger": {
+            "type": "input_tokens",
+            "value": 80000
+          }
         },
-        "largeToolResponse": { "enabled": true }
+        "largeToolResponse": {
+          "enabled": true
+        }
       }
     },
     "mcpServers": [
@@ -63,17 +77,21 @@
       },
       {
         "name": "prometheus",
-        "enableTools": ["@read-only"],
+        "enableTools": ["query", "query_range", "list_rules"],
         "requireApprovalForTools": [],
         "preload": false
       },
       {
         "name": "netbox",
-        "enableTools": ["@read-only"],
+        "enableTools": ["get_device", "list_rack_devices", "get_blast_radius"],
         "requireApprovalForTools": [],
         "preload": false
       }
     ],
-    "skills": [{ "name": "hush-triage" }]
+    "skills": [
+      {
+        "name": "hush-triage"
+      }
+    ]
   }
 }

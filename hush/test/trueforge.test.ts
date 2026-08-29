@@ -5,7 +5,12 @@ import { join } from "node:path";
 import type { TrueForgeApi } from "@truefoundry/trueforge-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createHarness, FakeHarness, lastJsonBlock } from "../src/trueforge.js";
+import {
+  createHarness,
+  FakeHarness,
+  lastJsonBlock,
+  unwrapToolCall
+} from "../src/trueforge.js";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -111,8 +116,65 @@ describe("agent manifest", () => {
     );
 
     expect(request.manifest.mcpServers).toHaveLength(5);
-    expect(request.manifest.model.name).toBe("openai/gpt-5.6-luna");
+    expect(request.manifest.model.name).toBe("openai/gpt-5-6-luna");
     expect(redfish?.requireApprovalForTools).toEqual(["reset_system"]);
     expect(request.manifest.skills).toEqual([{ name: "hush-triage" }]);
+  });
+});
+
+describe("unwrapToolCall", () => {
+  it("qualifies an MCP call with the server that owns it", () => {
+    // Shape recorded from a live approval at I1.
+    expect(
+      unwrapToolCall(
+        { name: "reset_system", serverName: "redfish" },
+        { system_id: "R4-N04", reset_type: "ForceRestart" }
+      )
+    ).toEqual({
+      tool: "redfish.reset_system",
+      args: { system_id: "R4-N04", reset_type: "ForceRestart" }
+    });
+  });
+
+  it("names the MCP tool TrueForge hid inside its call_tool envelope", () => {
+    expect(
+      unwrapToolCall(
+        { name: "call_tool" },
+        {
+          mcp_server: "redfish",
+          tool_name: "reset_system",
+          input: { system_id: "R4-N04" }
+        }
+      )
+    ).toEqual({
+      tool: "redfish.reset_system",
+      args: { system_id: "R4-N04" }
+    });
+  });
+
+  it("passes anything that is not an envelope straight through", () => {
+    expect(
+      unwrapToolCall({ name: "create_sub_agent" }, { instructions: "…" })
+    ).toEqual({ tool: "create_sub_agent", args: { instructions: "…" } });
+    expect(unwrapToolCall({ name: "call_tool" }, "not-json")).toEqual({
+      tool: "call_tool",
+      args: "not-json"
+    });
+  });
+});
+
+describe("recorded I1 session", () => {
+  it("replays the held approval without a TrueForge connection", async () => {
+    const harness = await FakeHarness.fromFile(
+      new URL("./fixtures/session-crac.jsonl", import.meta.url).pathname
+    );
+    await harness.turn();
+    const reset = await harness.turn();
+
+    expect(reset.pendingApproval?.tool).toBe("redfish.reset_system");
+    expect(reset.events.some((e) => e.type === "tool.approval_required")).toBe(
+      true
+    );
+    expect(JSON.stringify(reset.events)).not.toContain("reasoningContent");
   });
 });

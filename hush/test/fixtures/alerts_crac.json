@@ -1,0 +1,820 @@
+{
+  "alerts": [
+    {
+      "fingerprint": "006d3574b99eddd3",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N09",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N09"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "056271979083f4e4",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N06",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N06"
+      },
+      "startsAt": "2026-08-29T21:40:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "0d7b781764597c6b",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N05",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N05"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "0db0293b4a0aef00",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N12",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N12"
+      },
+      "startsAt": "2026-08-29T21:39:25.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "0e3cd17659082af4",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N04",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N04"
+      },
+      "startsAt": "2026-08-29T21:39:10.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "159a6aa971357e6f",
+      "name": "KubePodPending",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodPending",
+        "k8s_node": "hush-control-plane",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N01",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "2c1dd58ebd94eedd",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N06",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N06"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "3ab091767b8bbb88",
+      "name": "KubeNodeUnreachable",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubeNodeUnreachable",
+        "k8s_node": "hush-worker",
+        "layer": "kubernetes",
+        "node": "R4-N04",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "3fc176433b6561f0",
+      "name": "KubePodPending",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodPending",
+        "k8s_node": "hush-worker",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N04",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "445a52011396b77e",
+      "name": "KubeNodeNotReady",
+      "severity": "critical",
+      "labels": {
+        "alertname": "KubeNodeNotReady",
+        "k8s_node": "hush-worker2",
+        "layer": "kubernetes",
+        "node": "R4-N07",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "critical"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "46ebd555e1936037",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-worker",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N04",
+        "origin": "hush-chaos",
+        "pod": "worker-hush-worker",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "541d99a818bc8dbd",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N11",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N11"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "560947ec0259e9e0",
+      "name": "AppLatencyP99High",
+      "severity": "warning",
+      "labels": {
+        "alertname": "AppLatencyP99High",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning",
+        "tenant": "initech"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "5784163ca13012ab",
+      "name": "KubePodPending",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodPending",
+        "k8s_node": "hush-worker2",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N07",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "5fc3430b471a2f48",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N07",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N07"
+      },
+      "startsAt": "2026-08-29T21:39:15.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "6c8264bf59619a47",
+      "name": "KubeNodeUnreachable",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubeNodeUnreachable",
+        "k8s_node": "hush-worker2",
+        "layer": "kubernetes",
+        "node": "R4-N07",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "6d818bbfa5306ed0",
+      "name": "AppQueueBacklogHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "AppQueueBacklogHigh",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning",
+        "tenant": "acme"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "71adb2aee8a610aa",
+      "name": "KubeNodeNotReady",
+      "severity": "critical",
+      "labels": {
+        "alertname": "KubeNodeNotReady",
+        "k8s_node": "hush-control-plane",
+        "layer": "kubernetes",
+        "node": "R4-N01",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "critical"
+      },
+      "startsAt": "2026-08-29T21:39:27.077Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "71e12b0e2320a3cf",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N12",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N12"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "761f98b1507e0c7c",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N11",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N11"
+      },
+      "startsAt": "2026-08-29T21:39:50.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "76da46148d56a6e4",
+      "name": "AppErrorRateHigh",
+      "severity": "critical",
+      "labels": {
+        "alertname": "AppErrorRateHigh",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "critical",
+        "tenant": "globex"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "7d5a4c4b64e92400",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N05",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N05"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "7dda265c83c40468",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N03",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N03"
+      },
+      "startsAt": "2026-08-29T21:39:10.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "86338b69ee628727",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N07",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N07"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "86d57fbe0214d126",
+      "name": "AppLatencyP99High",
+      "severity": "warning",
+      "labels": {
+        "alertname": "AppLatencyP99High",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning",
+        "tenant": "acme"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "8b658a76b7fcf9d7",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N10",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N10"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "8da0f68713fe2c97",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N03",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N03"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "8fc79505921c1834",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-worker2",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N07",
+        "origin": "hush-chaos",
+        "pod": "web-hush-worker2",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "90c343c6214a5f02",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-control-plane",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N01",
+        "origin": "hush-chaos",
+        "pod": "web-hush-control-plane",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "986bd51885476ea5",
+      "name": "FacilityAmbientHigh",
+      "severity": "critical",
+      "labels": {
+        "alertname": "FacilityAmbientHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "facility",
+        "rack": "R4",
+        "severity": "critical"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "9b11aba952bf63d5",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-worker",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N04",
+        "origin": "hush-chaos",
+        "pod": "api-hush-worker",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "9dfe6df4f0abf55f",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-worker",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N04",
+        "origin": "hush-chaos",
+        "pod": "web-hush-worker",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "a9ca7cad01b28ebf",
+      "name": "AppErrorRateHigh",
+      "severity": "critical",
+      "labels": {
+        "alertname": "AppErrorRateHigh",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "critical",
+        "tenant": "acme"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "a9dd9e37220c2db1",
+      "name": "AppLatencyP99High",
+      "severity": "warning",
+      "labels": {
+        "alertname": "AppLatencyP99High",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning",
+        "tenant": "globex"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "abd8c8e03d356bbd",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N04",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N04"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "ad8d78511ff31e1a",
+      "name": "FlappingSwitchPort",
+      "severity": "info",
+      "labels": {
+        "alertname": "FlappingSwitchPort",
+        "layer": "network",
+        "node": "R2-SW01",
+        "origin": "hush-chaos",
+        "rack": "R2",
+        "severity": "info"
+      },
+      "startsAt": "2026-08-29T21:39:27.080Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "affb301a8e58b017",
+      "name": "AppErrorRateHigh",
+      "severity": "critical",
+      "labels": {
+        "alertname": "AppErrorRateHigh",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "critical",
+        "tenant": "initech"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "b02fcca257ba2765",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N08",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N08"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "b429d22618437a1e",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-worker2",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N07",
+        "origin": "hush-chaos",
+        "pod": "api-hush-worker2",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "c0348cca9f488cc6",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-worker2",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N07",
+        "origin": "hush-chaos",
+        "pod": "worker-hush-worker2",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "c576d211d30fbf64",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-control-plane",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N01",
+        "origin": "hush-chaos",
+        "pod": "worker-hush-control-plane",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "ccc6e899eb860c97",
+      "name": "KubeNodeUnreachable",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubeNodeUnreachable",
+        "k8s_node": "hush-control-plane",
+        "layer": "kubernetes",
+        "node": "R4-N01",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "ce0d19d57ad3e2c3",
+      "name": "KubeNodeNotReady",
+      "severity": "critical",
+      "labels": {
+        "alertname": "KubeNodeNotReady",
+        "k8s_node": "hush-worker",
+        "layer": "kubernetes",
+        "node": "R4-N04",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "critical"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "d12b930f332df7cc",
+      "name": "KubePodCrashLooping",
+      "severity": "warning",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "k8s_node": "hush-control-plane",
+        "layer": "kubernetes",
+        "namespace": "demo",
+        "node": "R4-N01",
+        "origin": "hush-chaos",
+        "pod": "api-hush-control-plane",
+        "rack": "R4",
+        "severity": "warning"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "d4dfac4548eb3200",
+      "name": "ThermalTrip",
+      "severity": "critical",
+      "labels": {
+        "alertname": "ThermalTrip",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N09",
+        "rack": "R4",
+        "severity": "critical",
+        "system": "R4-N09"
+      },
+      "startsAt": "2026-08-29T21:39:25.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "e87c0ae2b8d565da",
+      "name": "AppQueueBacklogHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "AppQueueBacklogHigh",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning",
+        "tenant": "initech"
+      },
+      "startsAt": "2026-08-29T21:39:27.080Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "e97d6729124009e5",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N02",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N02"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "f4b58824d79bfe23",
+      "name": "AppQueueBacklogHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "AppQueueBacklogHigh",
+        "layer": "app",
+        "origin": "hush-chaos",
+        "rack": "R4",
+        "severity": "warning",
+        "tenant": "globex"
+      },
+      "startsAt": "2026-08-29T21:39:27.079Z",
+      "status": "firing"
+    },
+    {
+      "fingerprint": "f78bdbf7bbf6dd13",
+      "name": "InletTempHigh",
+      "severity": "warning",
+      "labels": {
+        "alertname": "InletTempHigh",
+        "instance": "mock-bmc:8100",
+        "job": "mock-bmc",
+        "layer": "bmc",
+        "node": "R4-N01",
+        "rack": "R4",
+        "severity": "warning",
+        "system": "R4-N01"
+      },
+      "startsAt": "2026-08-29T21:39:20.375Z",
+      "status": "firing"
+    }
+  ],
+  "total": 49,
+  "truncated": false
+}
