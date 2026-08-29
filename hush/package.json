@@ -1,0 +1,32 @@
+{
+  "name": "hush-operator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run --coverage",
+    "lint": "eslint src test scripts && prettier --check .",
+    "format": "prettier --write .",
+    "incident": "tsx src/cli.ts incident",
+    "resume": "tsx src/cli.ts resume",
+    "register": "tsx scripts/register.ts"
+  },
+  "dependencies": {
+    "@truefoundry/trueforge-sdk": "^0.1.0",
+    "commander": "^13.1.0",
+    "pino": "^9.6.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@types/node": "^22.13.10",
+    "@vitest/coverage-v8": "^3.0.8",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.0",
+    "vitest": "^3.0.8"
+  }
+}
