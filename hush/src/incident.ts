@@ -137,6 +137,19 @@ export async function runIncident(
       () => controller.abort()
     );
     if (patch === undefined) {
+      if (node === "N10") {
+        state = merge(state, {
+          timeline: [
+            {
+              ts: dependencies.clock().toISOString(),
+              nodeId: "N10",
+              event: "report_timeout"
+            }
+          ]
+        });
+        await dependencies.save(state);
+        break;
+      }
       state = merge(state, {
         node: terminal ? node : "N9",
         ...(terminal ? {} : { outcome: "escalated" as const }),

@@ -358,7 +358,7 @@ describe("B4 resume runner", () => {
     expect(timedOut.outcome).toBe("recovered");
     expect(timedOut.timeline.at(-1)).toMatchObject({
       nodeId: "N10",
-      event: "run_timeout"
+      event: "report_timeout"
     });
     expect(page).not.toHaveBeenCalled();
 
