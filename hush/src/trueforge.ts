@@ -122,12 +122,23 @@ export class Harness implements HarnessClient {
 
 export class FakeHarness implements HarnessClient {
   private cursor = 0;
-  private constructor(private readonly turns: TurnResult[]) {}
-  static async fromFile(path: string): Promise<FakeHarness> {
+  private constructor(
+    private readonly turns: TurnResult[],
+    private readonly sink: (
+      event: TrueForgeApi.TurnStreamingEvent
+    ) => void = () => undefined
+  ) {}
+  static async fromFile(
+    path: string,
+    sink?: (event: TrueForgeApi.TurnStreamingEvent) => void
+  ): Promise<FakeHarness> {
     const lines = (await readFile(path, "utf8"))
       .split(/\r?\n/u)
       .filter((line) => line.trim() !== "");
-    return new FakeHarness(lines.map((line) => JSON.parse(line) as TurnResult));
+    return new FakeHarness(
+      lines.map((line) => JSON.parse(line) as TurnResult),
+      sink
+    );
   }
   async openSession(): Promise<string> {
     return "fake-session";
@@ -141,6 +152,7 @@ export class FakeHarness implements HarnessClient {
   private next(): TurnResult {
     const turn = this.turns[this.cursor++];
     if (turn === undefined) throw new Error("fake harness fixture exhausted");
+    for (const event of turn.events) this.sink(event);
     return turn;
   }
 }
@@ -153,7 +165,8 @@ export async function createHarness(
       process.env.HUSH_FAKE_HARNESS_FIXTURE ??
         fileURLToPath(
           new URL("../test/fixtures/session-crac.jsonl", import.meta.url)
-        )
+        ),
+      sink
     );
   return new Harness("hush-operator", sink);
 }

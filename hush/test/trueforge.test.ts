@@ -3,9 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { TrueForgeApi } from "@truefoundry/trueforge-sdk";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FakeHarness, lastJsonBlock } from "../src/trueforge.js";
+import { createHarness, FakeHarness, lastJsonBlock } from "../src/trueforge.js";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("lastJsonBlock", () => {
   it("returns the last fenced JSON value", () => {
@@ -36,6 +40,21 @@ describe("FakeHarness", () => {
       text: "approved"
     });
     await expect(harness.turn()).rejects.toThrow("fixture exhausted");
+  });
+
+  it("loads the default fixture and sends replayed events to the sink", async () => {
+    const events: TrueForgeApi.TurnStreamingEvent[] = [];
+    vi.stubEnv("HUSH_FAKE_HARNESS", "1");
+    vi.stubEnv("HUSH_FAKE_HARNESS_FIXTURE", undefined);
+
+    const harness = await createHarness((event) => events.push(event));
+    const turn = await harness.turn("fake-session", "ignored", {
+      runId: "inc-test",
+      nodeId: "N1"
+    });
+
+    expect(turn.text).toContain("fixture");
+    expect(events).toEqual(turn.events);
   });
 });
 
