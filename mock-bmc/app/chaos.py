@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.state import Fleet
+
+FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 
 
 class ThermalSpikeBody(BaseModel):
     system: str
-    delta_c: float
-    duration_s: float = 120.0
+    delta_c: FiniteFloat
+    duration_s: FiniteFloat = 120.0
 
 
 class PsuBody(BaseModel):
@@ -32,7 +34,7 @@ class SelBody(BaseModel):
 
 
 class CracBody(BaseModel):
-    delta_c: float = 14.0
+    delta_c: FiniteFloat = 14.0
 
 
 def _not_found(system_id: str) -> HTTPException:
