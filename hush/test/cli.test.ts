@@ -13,7 +13,8 @@ describe("Hush CLI", () => {
     expect(output).toEqual([
       {
         command: "incident",
-        scenario: "crac"
+        scenario: "crac",
+        until: "N3"
       }
     ]);
   });
