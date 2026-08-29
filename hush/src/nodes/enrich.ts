@@ -38,7 +38,8 @@ export const enrich: NodeFn = async (state, context) => {
       },
       context.loadPrompt
     ),
-    { runId: state.runId, nodeId: "N2" }
+    { runId: state.runId, nodeId: "N2" },
+    context.signal
   );
   const spawned = result.events.filter(
     (event) => (event as { type: string }).type === "thread.created"

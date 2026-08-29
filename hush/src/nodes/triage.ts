@@ -18,7 +18,9 @@ const schema = JSON.stringify({
 
 export const triage: NodeFn = async (state, context) => {
   const harness = harnessClient(context.harness);
-  const sessionId = state.sessionId ?? (await harness.openSession());
+  const sessionId =
+    state.sessionId ?? (await harness.openSession(context.signal));
+  context.signal?.throwIfAborted();
   const compact = state.alerts.map((alert) => ({
     f: alert.fingerprint,
     n: alert.name,
@@ -42,10 +44,15 @@ export const triage: NodeFn = async (state, context) => {
     },
     context.loadPrompt
   );
-  const result = await harness.turn(sessionId, message, {
-    runId: state.runId,
-    nodeId: "N1"
-  });
+  const result = await harness.turn(
+    sessionId,
+    message,
+    {
+      runId: state.runId,
+      nodeId: "N1"
+    },
+    context.signal
+  );
   try {
     const incident = Incident.parse(lastJsonBlock(result.text));
     if (incident.primary.length === 0)

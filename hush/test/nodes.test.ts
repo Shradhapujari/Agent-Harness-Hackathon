@@ -101,8 +101,30 @@ describe("N1 triage", () => {
     expect(harness.turn).toHaveBeenCalledWith(
       "session-1",
       expect.stringContaining('"f":"fp-1"'),
-      { runId: "inc-20260829-abcd", nodeId: "N1" }
+      { runId: "inc-20260829-abcd", nodeId: "N1" },
+      undefined
     );
+  });
+
+  it("does not start a turn when cancellation arrives during session creation", async () => {
+    const controller = new AbortController();
+    const harness = {
+      openSession: vi.fn().mockImplementation(async () => {
+        controller.abort(new Error("deadline exceeded"));
+        return "session-1";
+      }),
+      turn: vi.fn()
+    };
+    const cancelledContext = {
+      ...context(harness),
+      signal: controller.signal
+    };
+
+    await expect(
+      triage(state({ alerts: [alert()] }), cancelledContext)
+    ).rejects.toThrow("deadline exceeded");
+    expect(harness.openSession).toHaveBeenCalledWith(controller.signal);
+    expect(harness.turn).not.toHaveBeenCalled();
   });
 
   it("increments parse retries and records the validation error", async () => {

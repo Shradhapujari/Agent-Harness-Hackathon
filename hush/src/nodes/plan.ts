@@ -65,10 +65,12 @@ export const plan: NodeFn = async (state, context) => {
   let parsed: z.infer<typeof Proposal>[] | undefined;
   let validationError = "";
   for (let attempt = 0; attempt < LIMITS.PARSE_RETRIES_MAX; attempt += 1) {
+    context.signal?.throwIfAborted();
     const result = await harness.turn(
       state.sessionId,
       `${message}${validationError}`,
-      { runId: state.runId, nodeId: "N3" }
+      { runId: state.runId, nodeId: "N3" },
+      context.signal
     );
     try {
       parsed = Output.parse(lastJsonBlock(result.text)).actions;
