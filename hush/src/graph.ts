@@ -61,7 +61,7 @@ export interface Ctx {
     graph_id: string;
     run_id: string;
     node_id: "N9";
-    session_id: string | null;
+    session_id: string;
     message: string;
   }) => void;
 }

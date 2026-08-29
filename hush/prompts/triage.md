@@ -8,6 +8,9 @@ PsuInputLost to `psu_failure`, and an isolated CpuTempCritical to
 `thermal_single`; otherwise use `unknown`.
 Put root-cause alerts in `primary`, caused alerts in `symptoms`, and unrelated or
 flapping alerts in `noise`. Use fingerprints exactly as supplied.
+Before the final response, render one compact incident card containing the root
+cause, confidence, and primary/symptom/noise alert counts. This is the first of
+exactly two Generative UI displays for the incident.
 
 Alerts:
 {{alerts}}
