@@ -64,6 +64,33 @@ describe("FakeHarness", () => {
     expect(events).toEqual(turn.events);
   });
 
+  it("does not consume or emit a fake turn after cancellation", async () => {
+    const events: TrueForgeApi.TurnStreamingEvent[] = [];
+    const directory = await mkdtemp(join(tmpdir(), "hush-cancelled-"));
+    const fixture = join(directory, "turns.jsonl");
+    await writeFile(
+      fixture,
+      `${JSON.stringify({ text: "unused", events: [{ type: "turn.done" }] })}\n`,
+      "utf8"
+    );
+    const harness = await FakeHarness.fromFile(fixture, (event) =>
+      events.push(event)
+    );
+    const controller = new AbortController();
+    controller.abort(new Error("deadline exceeded"));
+
+    await expect(
+      harness.turn(
+        "fake-session",
+        "ignored",
+        { runId: "inc-test", nodeId: "N1" },
+        controller.signal
+      )
+    ).rejects.toThrow("deadline exceeded");
+    expect(events).toEqual([]);
+    await expect(harness.turn()).resolves.toMatchObject({ text: "unused" });
+  });
+
   it("explains that fake mode needs the I1 recording", async () => {
     vi.stubEnv("HUSH_FAKE_HARNESS", "1");
     vi.stubEnv("HUSH_FAKE_HARNESS_FIXTURE", undefined);
