@@ -4,6 +4,10 @@
 COMPOSE := docker compose -f infra/docker-compose.yml
 KIND_CLUSTER := hush
 KIND_CONTEXT := kind-$(KIND_CLUSTER)
+# Derived from the cluster config so the two cannot drift apart. The pattern is
+# indentation-agnostic on purpose: YAML lets the sequence sit at any column, and
+# a count of zero would make the readiness loop below pass on its first check.
+KIND_NODES := $(shell grep -cE '^[[:space:]]*-[[:space:]]+role:[[:space:]]' infra/kind/cluster.yaml)
 
 .PHONY: sync up down kind-up kind-down smoke test
 
@@ -21,6 +25,21 @@ down:
 # be the current context.
 kind-up:
 	kind create cluster --config infra/kind/cluster.yaml
+	# Workers register after the control-plane reports Ready, and `kubectl wait
+	# --all` only selects the nodes that exist when it starts — a worker still
+	# registering is never waited on. Applying then leaves one topology domain,
+	# the spread constraint is trivially satisfied, and all nine pods land on the
+	# control-plane. So: wait for all $(KIND_NODES) node objects to appear first,
+	# and only then for them to go Ready.
+	@test "$(KIND_NODES)" -ge 1 2>/dev/null || \
+	  { echo "KIND_NODES=$(KIND_NODES): no roles parsed from infra/kind/cluster.yaml" >&2; exit 1; }
+	@for i in $$(seq 1 60); do \
+	  n=$$(kubectl --context $(KIND_CONTEXT) get nodes --no-headers 2>/dev/null | wc -l | tr -d ' '); \
+	  if [ "$$n" -ge "$(KIND_NODES)" ]; then break; fi; \
+	  if [ "$$i" -eq 60 ]; then echo "only $$n/$(KIND_NODES) nodes registered after 120s" >&2; exit 1; fi; \
+	  sleep 2; \
+	done
+	kubectl --context $(KIND_CONTEXT) wait --for=condition=Ready nodes --all --timeout=120s
 	kubectl --context $(KIND_CONTEXT) apply -f infra/kind/workloads.yaml
 	kubectl --context $(KIND_CONTEXT) -n demo rollout status deploy --timeout=120s
 
