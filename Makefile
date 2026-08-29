@@ -3,6 +3,7 @@
 
 COMPOSE := docker compose -f infra/docker-compose.yml
 KIND_CLUSTER := hush
+KIND_CONTEXT := kind-$(KIND_CLUSTER)
 
 .PHONY: sync up down kind-up kind-down smoke test
 
@@ -15,10 +16,13 @@ up:
 down:
 	$(COMPOSE) down -v
 
+# Every kubectl call is pinned to the kind context this target just created,
+# so the demo workloads can never be applied to a real cluster that happens to
+# be the current context.
 kind-up:
 	kind create cluster --config infra/kind/cluster.yaml
-	kubectl apply -f infra/kind/workloads.yaml
-	kubectl -n demo rollout status deploy --timeout=120s
+	kubectl --context $(KIND_CONTEXT) apply -f infra/kind/workloads.yaml
+	kubectl --context $(KIND_CONTEXT) -n demo rollout status deploy --timeout=120s
 
 kind-down:
 	kind delete cluster --name $(KIND_CLUSTER)
