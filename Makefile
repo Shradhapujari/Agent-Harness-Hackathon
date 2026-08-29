@@ -7,9 +7,10 @@ KIND_CONTEXT := kind-$(KIND_CLUSTER)
 # Derived from the cluster config so the two cannot drift apart. The pattern is
 # indentation-agnostic on purpose: YAML lets the sequence sit at any column, and
 # a count of zero would make the readiness loop below pass on its first check.
+NETBOX_URL := $(or $(HUSH_NETBOX_URL),http://127.0.0.1:8000)
 KIND_NODES := $(shell grep -cE '^[[:space:]]*-[[:space:]]+role:[[:space:]]' infra/kind/cluster.yaml)
 
-.PHONY: sync up down kind-up kind-down smoke test
+.PHONY: sync up down kind-up kind-down netbox-up netbox-seed smoke test
 
 sync:
 	uv sync --all-packages
@@ -47,6 +48,18 @@ kind-up:
 
 kind-down:
 	kind delete cluster --name $(KIND_CLUSTER)
+
+# NetBox is optional and slow to start (2-4 min to first API response). Every
+# NetBox tool answers from infra/netbox/seed.json until it is up.
+netbox-up:
+	$(COMPOSE) --profile netbox up -d
+	@for i in $$(seq 1 60); do \
+	  if curl -sf -o /dev/null $(NETBOX_URL)/api/status/; then echo "netbox ready"; exit 0; fi; \
+	  sleep 5; \
+	done; echo "netbox did not answer within 5 minutes" >&2; exit 1
+
+netbox-seed: netbox-up
+	uv run python infra/netbox/seed.py
 
 smoke:
 	./scripts/smoke.sh

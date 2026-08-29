@@ -1,0 +1,159 @@
+{
+  "site": {
+    "name": "SFO-LAB",
+    "slug": "sfo-lab"
+  },
+  "rack": {
+    "name": "R4",
+    "site": "SFO-LAB",
+    "u_height": 42
+  },
+  "tenants": [
+    "acme",
+    "globex",
+    "initech"
+  ],
+  "device_role": {
+    "name": "compute",
+    "slug": "compute"
+  },
+  "device_type": {
+    "model": "MockRack-1U",
+    "slug": "mockrack-1u",
+    "manufacturer": "Hush Labs"
+  },
+  "devices": [
+    {
+      "name": "R4-N01",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "acme",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N01",
+      "bmc_id": "R4-N01",
+      "position": 1
+    },
+    {
+      "name": "R4-N02",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "globex",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N02",
+      "bmc_id": "R4-N02",
+      "position": 2
+    },
+    {
+      "name": "R4-N03",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "initech",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N03",
+      "bmc_id": "R4-N03",
+      "position": 3
+    },
+    {
+      "name": "R4-N04",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "acme",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N04",
+      "bmc_id": "R4-N04",
+      "position": 4
+    },
+    {
+      "name": "R4-N05",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "globex",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N05",
+      "bmc_id": "R4-N05",
+      "position": 5
+    },
+    {
+      "name": "R4-N06",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "initech",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N06",
+      "bmc_id": "R4-N06",
+      "position": 6
+    },
+    {
+      "name": "R4-N07",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "acme",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N07",
+      "bmc_id": "R4-N07",
+      "position": 7
+    },
+    {
+      "name": "R4-N08",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "globex",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N08",
+      "bmc_id": "R4-N08",
+      "position": 8
+    },
+    {
+      "name": "R4-N09",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "initech",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N09",
+      "bmc_id": "R4-N09",
+      "position": 9
+    },
+    {
+      "name": "R4-N10",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "acme",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N10",
+      "bmc_id": "R4-N10",
+      "position": 10
+    },
+    {
+      "name": "R4-N11",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "globex",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N11",
+      "bmc_id": "R4-N11",
+      "position": 11
+    },
+    {
+      "name": "R4-N12",
+      "rack": "R4",
+      "site": "SFO-LAB",
+      "role": "compute",
+      "tenant": "initech",
+      "model": "MockRack-1U",
+      "serial": "MBMC-R4-N12",
+      "bmc_id": "R4-N12",
+      "position": 12
+    }
+  ]
+}
