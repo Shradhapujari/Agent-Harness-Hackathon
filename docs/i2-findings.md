@@ -268,12 +268,60 @@ does not treat those as assignments either, and the two parsers have to agree or
 the scripts act on a value the controller never saw. Verified by pointing `.env`
 at port 8123 and watching `make up` and `make smoke` both follow.
 
+### Second round
+
+Qodo re-reviewed the fixes above and marked both resolved, then raised three
+more. Two were real and are fixed; one is declined with reasons.
+
+**Clock rollback extends the budget (fixed).** `spent()` subtracted two wall
+clock readings, so an NTP step backwards could hand budget back — and write a
+negative `budgetSpentMs`, which the schema's own `nonnegative()` check would
+then reject, making the checkpoint unloadable. Exactly the trap that constraint
+was meant to prevent. The meter now only ever runs forward: a clock that goes
+backwards stops it until it catches up.
+
+**The proxy could fail silently (fixed).** `mcp-up.sh` warned and carried on
+when the proxy never bound, so `make up` reported success and the run escalated
+at N8 for a reason nothing on screen explained. A proxy we started and that then
+died — bad context, port taken — now fails `make up` with the log tail. A
+*missing* `kubectl` is still a skip: nothing was promised, so nothing broke.
+
+**The `.env` parsers still diverged (fixed).** Qodo was right on every point and
+the comment I had written was wrong. Checked against node itself:
+
+| line | node | first loader |
+|---|---|---|
+| `export FOO=two` | `two` | skipped |
+| `FOO="three"` | `three` | `"three"` |
+| `FOO=five␠␠␠` | `five` | `five␠␠␠` |
+| `FOO=six # note` | `six` | `six # note` |
+| `FOO=bare#nospace` | `bare` | `bare#nospace` |
+
+The loader now implements each of these. It does not implement a quote opened on
+one line and closed on another — node reads those as a single multi-line value —
+so rather than guess differently it skips the line and says so on stderr. The
+two can disagree loudly or agree silently; they can no longer disagree quietly.
+`infra/tests/test_env_loader.py` pins the behaviour and diffs it against the
+real node parser whenever node is on the box.
+
+**`watch_poll` logs a null session id (declined).** The rule asks every workflow
+log to carry a populated graph, run, node and session id. N0 cannot: it is a
+deterministic node that polls Alertmanager before any incident exists, and
+`graph.md` §3 gives `sessionId` to N1. Satisfying the rule would mean opening a
+TrueForge session on every idle poll of a quiet alert bus, which is worse than
+the thing it is protecting against. `session_id: null` here is accurate rather
+than missing — the logger writes the key explicitly instead of omitting it — and
+every log from N1 onwards carries the real id. Left as it is.
+
 ## Still owed by this checkpoint
 
-- **`crac` end to end after these fixes.** The `hang` path is verified live;
-  `crac` has only been re-checked for storm detection. Its correlation was
-  already fixed at I1 and the changes here are scenario-independent, but it has
-  not been run through N10 since.
+- **`crac` past the plan.** Re-run live after the fixes and verified through N3:
+  44 alerts detected as one burst, triaged to `crac_failure` at 0.99 confidence
+  across all twelve R4 machines, 1 primary / 42 symptoms / 1 noise — the noise
+  being the `FlappingSwitchPort` in rack R2 that the scenario plants for exactly
+  this test — three enrichment subagents on the first attempt, and a four-action
+  plan. It has not been driven through approval and N10 since, because finding
+  12 stops any run there anyway.
 - **Kill and restart TrueForge during N2, then `hush resume`.** Finding 10 is
   fixed and covered by tests that fail against the old code, but the physical
   restart has not been rehearsed. Do it at I3, on Person A's laptop.

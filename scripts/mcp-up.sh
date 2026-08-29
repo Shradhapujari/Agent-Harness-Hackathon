@@ -52,16 +52,27 @@ elif ! command -v kubectl >/dev/null 2>&1; then
 else
   nohup kubectl --context "$KUBE_CONTEXT" proxy --port="$KUBE_PORT" \
     > "runs/mcp-kube-proxy.log" 2>&1 &
-  echo $! > "runs/mcp-kube-proxy.pid"
-  echo "  kubernetes proxy started on $KUBE_PORT (pid $!)"
-  # Not fatal: the MCP servers are what `make up` promises, and a laptop with no
-  # cluster still gets a working stack. Only N8's probe goes without.
+  kube_pid=$!
+  echo "$kube_pid" > "runs/mcp-kube-proxy.pid"
+  # A proxy we started and that then died — a context that does not exist, a
+  # port already taken — is a real failure and has to stop `make up`. Reporting
+  # success here left N8 with nothing to poll and the run escalating for a
+  # reason nothing on screen explained (Qodo, PR #20). A missing kubectl is a
+  # different thing, handled above: nothing was promised, nothing broke.
   for _ in $(seq 1 20); do
     listening "$KUBE_PORT" && break
+    kill -0 "$kube_pid" 2>/dev/null || break
     sleep 0.5
   done
-  listening "$KUBE_PORT" || \
-    echo "  kubernetes proxy did not bind $KUBE_PORT; see runs/mcp-kube-proxy.log" >&2
+  if listening "$KUBE_PORT"; then
+    echo "  kubernetes proxy started on $KUBE_PORT (pid $kube_pid)"
+  else
+    echo "  kubernetes proxy did not bind $KUBE_PORT (context $KUBE_CONTEXT);" \
+         "see runs/mcp-kube-proxy.log" >&2
+    tail -n 3 "runs/mcp-kube-proxy.log" >&2 2>/dev/null || true
+    rm -f "runs/mcp-kube-proxy.pid"
+    exit 1
+  fi
 fi
 
 # Give the last one a moment to bind so `make up && make smoke` does not race.

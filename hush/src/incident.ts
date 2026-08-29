@@ -89,10 +89,20 @@ export async function runIncident(
   // would let repeated restarts run past the bound forever. So: carry the
   // spent time in the checkpoint and give a resume only what is left.
   // `runStartedAt` still records when the incident began, for the report.
-  const enteredAt = dependencies.clock().getTime();
-  const spentBefore = state.budgetSpentMs ?? 0;
-  const spent = () =>
-    spentBefore + (dependencies.clock().getTime() - enteredAt);
+  //
+  // The meter only ever runs forward. `clock()` is the wall clock, which an NTP
+  // correction can step backwards; subtracting two readings of it could hand
+  // budget back, and a negative `budgetSpentMs` would fail the schema's own
+  // nonnegative check and make the checkpoint unloadable. A clock that goes
+  // backwards just stops the meter until it catches up.
+  let spentMs = state.budgetSpentMs ?? 0;
+  let lastTick = dependencies.clock().getTime();
+  const spent = () => {
+    const now = dependencies.clock().getTime();
+    if (now > lastTick) spentMs += now - lastTick;
+    lastTick = now;
+    return spentMs;
+  };
   const remainingMs = () => LIMITS.RUN_TIMEOUT_S * 1000 - spent();
   // Stamps the spent time onto every checkpoint without touching `state`: the
   // N9 session checkpoint deliberately assigns `state` only after its save

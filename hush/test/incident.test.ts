@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { LIMITS, type NodeFn } from "../src/graph.js";
 import { runIncident, type IncidentDependencies } from "../src/incident.js";
-import type { RunState } from "../src/state.js";
+import { RunState } from "../src/state.js";
 import type { HarnessClient } from "../src/trueforge.js";
 import { action, alert, evidence, incident } from "./helpers.js";
 
@@ -285,6 +285,53 @@ describe("B4 resume runner", () => {
     expect(enrich).not.toHaveBeenCalled();
     expect(result).toMatchObject({ outcome: "escalated" });
     expect(result.timeline.map((item) => item.event)).toContain("run_timeout");
+  });
+
+  it("never hands budget back when the wall clock steps backwards", async () => {
+    // clock() is the wall clock and NTP can step it back. A negative
+    // budgetSpentMs would fail the schema's own nonnegative check and make the
+    // checkpoint unloadable (Qodo, PR #20).
+    const deps = dependencies(
+      {
+        N2: async () => ({
+          evidence: [
+            evidence("redfish"),
+            evidence("netbox"),
+            evidence("kubernetes")
+          ]
+        }),
+        N3: async () => ({ actions: [action()] })
+      },
+      // loop entry, the run_resumed stamp, one 5 s tick, then a step back.
+      sequence(
+        start,
+        start,
+        new Date(start.getTime() + 5_000),
+        new Date(start.getTime() - 3_600_000)
+      )
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      budgetSpentMs: 1_000,
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    await runIncident({ until: "N3" }, deps.value, vi.fn(), checkpoint);
+
+    for (const saved of deps.saved) {
+      expect(saved.budgetSpentMs).toBeGreaterThanOrEqual(1_000);
+      expect(() => RunState.parse(saved)).not.toThrow();
+    }
+    // The 5 s it ran before the step back is kept; the step back adds nothing.
+    expect(deps.saved.at(-1)?.budgetSpentMs).toBe(6_000);
   });
 
   it("records the budget it spent on every checkpoint", async () => {
