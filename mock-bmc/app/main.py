@@ -6,6 +6,7 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
@@ -54,7 +55,7 @@ def create_app(node_ids: list[str] | None = None, tick_interval_s: float = 1.0) 
     app.include_router(build_chaos_router(fleet))
 
     @app.get("/")
-    def root() -> dict:
+    def root() -> dict[str, Any]:
         return {
             "service": "mock-bmc",
             "nodes": len(node_ids),
