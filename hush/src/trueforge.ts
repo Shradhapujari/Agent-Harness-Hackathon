@@ -1,0 +1,171 @@
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+
+import { TrueForge } from "@truefoundry/trueforge-sdk";
+import type { TrueForgeApi } from "@truefoundry/trueforge-sdk";
+
+export type PendingApproval = {
+  threadId: string;
+  toolCallId: string;
+  tool: string;
+  args: unknown;
+};
+export interface TurnResult {
+  text: string;
+  events: TrueForgeApi.TurnStreamingEvent[];
+  pendingApproval?: PendingApproval;
+}
+export interface HarnessClient {
+  openSession(): Promise<string>;
+  turn(
+    sessionId: string,
+    message: string,
+    tag: { runId: string; nodeId: string }
+  ): Promise<TurnResult>;
+  approve(
+    sessionId: string,
+    pending: PendingApproval,
+    allow: boolean,
+    reason?: string
+  ): Promise<TurnResult>;
+}
+
+export class Harness implements HarnessClient {
+  private readonly client: TrueForge;
+  constructor(
+    private readonly agentName = "hush-operator",
+    private readonly sink: (
+      event: TrueForgeApi.TurnStreamingEvent
+    ) => void = () => undefined
+  ) {
+    this.client = new TrueForge({
+      baseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://localhost:8790",
+      timeoutInSeconds: 900
+    });
+  }
+  async openSession(): Promise<string> {
+    const response = await this.client.sessions.create({
+      agent: { name: this.agentName }
+    });
+    return response.data.id;
+  }
+  async turn(
+    sessionId: string,
+    message: string,
+    tag: { runId: string; nodeId: string }
+  ): Promise<TurnResult> {
+    return this.stream(sessionId, [
+      {
+        type: "user.message",
+        content: `[hush run_id=${tag.runId} node=${tag.nodeId}]\n${message}`
+      }
+    ]);
+  }
+  async approve(
+    sessionId: string,
+    pending: PendingApproval,
+    allow: boolean,
+    reason?: string
+  ): Promise<TurnResult> {
+    return this.stream(sessionId, [
+      {
+        type: "user.tool_approval",
+        threadId: pending.threadId,
+        toolCallId: pending.toolCallId,
+        approval: allow
+          ? { status: "allow" }
+          : { status: "deny", ...(reason === undefined ? {} : { reason }) }
+      }
+    ]);
+  }
+  private async stream(
+    sessionId: string,
+    input: TrueForgeApi.TurnInputItem[]
+  ): Promise<TurnResult> {
+    const stream = await this.client.sessions.createTurnStream(sessionId, {
+      input,
+      previousTurnId: "auto"
+    });
+    const result: TurnResult = { text: "", events: [] };
+    const calls = new Map<string, { tool: string; args: unknown }>();
+    for await (const event of stream) {
+      this.sink(event);
+      result.events.push(event);
+      if (event.type === "model.message.delta")
+        result.text += event.content ?? "";
+      if (event.type === "model.message")
+        for (const call of event.toolCalls ?? [])
+          calls.set(call.id, {
+            tool: call.toolInfo.name,
+            args: parseToolArguments(call.function.arguments)
+          });
+      if (event.type === "tool.approval_required") {
+        const reference = event.toolCalls[0];
+        if (reference === undefined)
+          throw new Error("approval event contained no tool call references");
+        const call = calls.get(reference.id);
+        if (call === undefined)
+          throw new Error(
+            `approval event referenced unknown tool call ${reference.id}`
+          );
+        result.pendingApproval = {
+          threadId: event.threadId,
+          toolCallId: reference.id,
+          ...call
+        };
+      }
+      if (event.type === "turn.done") break;
+    }
+    return result;
+  }
+}
+
+export class FakeHarness implements HarnessClient {
+  private cursor = 0;
+  private constructor(private readonly turns: TurnResult[]) {}
+  static async fromFile(path: string): Promise<FakeHarness> {
+    const lines = (await readFile(path, "utf8"))
+      .split(/\r?\n/u)
+      .filter((line) => line.trim() !== "");
+    return new FakeHarness(lines.map((line) => JSON.parse(line) as TurnResult));
+  }
+  async openSession(): Promise<string> {
+    return "fake-session";
+  }
+  async turn(): Promise<TurnResult> {
+    return this.next();
+  }
+  async approve(): Promise<TurnResult> {
+    return this.next();
+  }
+  private next(): TurnResult {
+    const turn = this.turns[this.cursor++];
+    if (turn === undefined) throw new Error("fake harness fixture exhausted");
+    return turn;
+  }
+}
+
+export async function createHarness(
+  sink?: (event: TrueForgeApi.TurnStreamingEvent) => void
+): Promise<HarnessClient> {
+  if (process.env.HUSH_FAKE_HARNESS === "1")
+    return FakeHarness.fromFile(
+      process.env.HUSH_FAKE_HARNESS_FIXTURE ??
+        fileURLToPath(
+          new URL("../test/fixtures/session-crac.jsonl", import.meta.url)
+        )
+    );
+  return new Harness("hush-operator", sink);
+}
+export function lastJsonBlock(text: string): unknown {
+  const match = [...text.matchAll(/```json\s*([\s\S]*?)```/giu)].at(-1);
+  if (match?.[1] === undefined) throw new Error("no json block");
+  return JSON.parse(match[1]);
+}
+function parseToolArguments(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
