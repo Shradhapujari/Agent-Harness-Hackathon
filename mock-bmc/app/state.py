@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+MAX_SEL_RECORDS = 1000
+
 
 def clamp(v: float, lo: float, hi: float) -> float:
     """Clamp v into [lo, hi]."""
@@ -100,7 +102,10 @@ class Fleet:
             code=code,
             message=message,
         )
-        self._machine(system_id).sel.append(entry)
+        entries = self._machine(system_id).sel
+        entries.append(entry)
+        if len(entries) > MAX_SEL_RECORDS:
+            del entries[:-MAX_SEL_RECORDS]
         return entry
 
     def tick(self, dt_s: float = 1.0, now: float | None = None) -> None:

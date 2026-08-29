@@ -156,6 +156,18 @@ def test_sel_ids_increase_timestamps_iso_newest_last():
     assert fleet.machines["T1"].sel[-1].message == "third"
 
 
+def test_sel_wraps_at_1000_records_and_keeps_newest_entries():
+    fleet = _fleet_one()
+    for number in range(1002):
+        fleet.log_sel("T1", "OK", "UserNote", str(number))
+
+    entries = fleet.machines["T1"].sel
+    assert len(entries) == 1000
+    assert entries[0].message == "2"
+    assert entries[-1].message == "1001"
+    assert [entry.id for entry in entries] == list(range(3, 1003))
+
+
 def test_hung_machine_load_frozen_across_ticks():
     fleet = _fleet_one()
     m = fleet.machines["T1"]
