@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DC-Sentinel: Autonomous Data Center Operator — Hackathon Brief</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3;
+    --muted:#8b949e; --accent:#58a6ff; --green:#3fb950; --orange:#d29922; --red:#f85149; --purple:#bc8cff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; line-height:1.6; padding:2rem;}
+  .wrap{max-width:1100px; margin:0 auto;}
+  h1{font-size:2.4rem; margin-bottom:.5rem;}
+  h1 .hl{color:var(--accent);}
+  .subtitle{color:var(--muted); font-size:1.15rem; margin-bottom:2rem;}
+  h2{font-size:1.6rem; margin:2.5rem 0 1rem; padding-bottom:.4rem; border-bottom:1px solid var(--border); color:var(--accent);}
+  h3{font-size:1.15rem; margin:1.4rem 0 .6rem; color:var(--purple);}
+  p{margin-bottom:1rem;}
+  ul,ol{margin:0 0 1rem 1.5rem;}
+  li{margin-bottom:.4rem;}
+  code{background:#21262d; padding:.15em .4em; border-radius:4px; font-size:.9em; color:var(--green);}
+  table{width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem;}
+  th,td{border:1px solid var(--border); padding:.6rem .8rem; text-align:left; vertical-align:top;}
+  th{background:#1c2128; color:var(--accent);}
+  .tag{display:inline-block; background:#21262d; border:1px solid var(--border); border-radius:999px; padding:.2rem .8rem; margin:.2rem .3rem .2rem 0; font-size:.85rem; color:var(--muted);}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:1.2rem 1.4rem; margin:1rem 0;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1rem;}
+  .flow{display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:1rem 0;}
+  .step{background:#21262d; border:1px solid var(--border); border-radius:8px; padding:.6rem 1rem; font-size:.9rem;}
+  .arrow{color:var(--muted);}
+  .ok{color:var(--green);} .warn{color:var(--orange);} .bad{color:var(--red);}
+  .pill{font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; border-radius:4px; padding:.1rem .5rem; vertical-align:middle;}
+  .pill-auto{background:#12321c; color:var(--green); border:1px solid #1f6f33;}
+  .pill-approval{background:#3a2b0a; color:var(--orange); border:1px solid #8a6410;}
+  .kpi{font-size:1.6rem; font-weight:700; color:var(--accent);}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin:1.2rem 0;}
+  .kpi-box{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:1rem; text-align:center;}
+  .kpi-box small{color:var(--muted); display:block;}
+  .diagram{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:1.2rem; overflow-x:auto; font-family:Consolas,monospace; font-size:.85rem; white-space:pre; line-height:1.45; color:#c9d1d9;}
+  footer{margin-top:3rem; color:var(--muted); font-size:.85rem; border-top:1px solid var(--border); padding-top:1rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🛰️ DC-Sentinel</h1>
+<p class="subtitle">Autonomous Data Center Operator — Agent Harness Hackathon (Bright Data × WeMakeDevs, San Francisco)</p>
+
+<div class="kpis">
+  <div class="kpi-box"><span class="kpi">40 → 1</span><small>alarms in → one root cause out</small></div>
+  <div class="kpi-box"><span class="kpi">0</span><small>humans paged</small></div>
+  <div class="kpi-box"><span class="kpi">1</span><small>approval requested before destructive action</small></div>
+</div>
+
+<h2>1. The Problem We Solve</h2>
+
+<div class="card">
+  <h3>🔥 Alarm storms in data centers</h3>
+  <p>When one thing breaks in a data center — a CRAC cooling unit, a power feed, a hung server — it does not produce one alert. It produces a <strong>cascade</strong>: temperature sensors trip, PSU stress alarms fire, a dozen nodes drop off Kubernetes, pods crash, applications error out. Each monitoring layer fires independently. A NOC engineer wakes up to <strong>40+ alarms that are really 1 root cause</strong>, and must manually correlate them across tools (BMC/Redfish, Kubernetes, Prometheus, NetBox) under time pressure.</p>
+</div>
+
+<h3>Why this is a proven, funded problem</h3>
+<ul>
+  <li><strong>BigPanda</strong> — raised $350M+; entire product is alert correlation &amp; triage. Customers: UBS, London Stock Exchange, IHG, Paramount.</li>
+  <li><strong>Moogsoft</strong> — AIOps alert-correlation pioneer, acquired by Dynatrace (2023).</li>
+  <li><strong>PagerDuty, OpsRamp, Shoreline.io, Keep</strong> — all monetize alert noise → triage.</li>
+  <li>Alert fatigue is a documented driver of missed incidents and on-call burnout.</li>
+</ul>
+
+<div class="card">
+  <h3>🎯 Our angle: the missing <em>execution loop</em></h3>
+  <p>BigPanda &amp; co stop at <em>enriched incidents + recommendations</em>. A human still performs every action: drains the node, checks the BMC, power-cycles the server. <strong>We close the loop.</strong> Our agent doesn't just say "probably the CRAC in rack R4" — it proposes, requests approval for anything destructive, executes via real APIs (Redfish / Kubernetes), and verifies recovery.</p>
+  <p><span class="pill pill-auto">Auto</span> safe read-only investigation &nbsp; <span class="pill pill-approval">Approval</span> destructive actions paused for human sign-off</p>
+</div>
+
+<h2>2. What We Are Building</h2>
+
+<p><strong>DC-Sentinel</strong>: an autonomous triager-operator agent that ingests a live alarm stream, correlates it down to a root cause, gathers evidence across three layers of the data center, proposes ranked remediation actions, and executes them — with a human approval gate for anything irreversible.</p>
+
+<h3>The flow (one incident, end to end)</h3>
+<div class="flow">
+  <span class="step">🧨 Chaos injector fires CRAC-failure scenario</span><span class="arrow">→</span>
+  <span class="step">40 alarms land in Alertmanager</span><span class="arrow">→</span>
+  <span class="step">🤖 Triager agent ingests</span><span class="arrow">→</span>
+  <span class="step">Subagents: correlate / classify / enrich</span><span class="arrow">→</span>
+  <span class="step">1 root cause + noise marked</span><span class="arrow">→</span>
+  <span class="step">Ranked actions proposed</span><span class="arrow">→</span>
+  <span class="step">👤 Approval gate</span><span class="arrow">→</span>
+  <span class="step">Execute (drain / power-cycle)</span><span class="arrow">→</span>
+  <span class="step">✅ Verify recovery + incident report</span>
+</div>
+
+<h3>Worked example (the demo script)</h3>
+<ol>
+  <li><strong>Inject:</strong> rack R4 CRAC unit "fails". Thermal alarms ×3 fire, then PSU stress, then 12 node-down alerts, then pod errors — a realistic cascade.</li>
+  <li><strong>Correlate:</strong> subagents group the 40 alerts by device/rack/time-window → one cluster in rack R4; rest flapping noise.</li>
+  <li><strong>Enrich:</strong> Redfish shows inlet temps 38°C → 47°C on R4 nodes; NetBox shows R4 = 12 compute nodes, 3 tenants affected.</li>
+  <li><strong>Decide:</strong> drain + reschedule pods to cooler racks <span class="pill pill-auto">Auto</span>; graceful shutdown of R4 nodes to prevent thermal damage <span class="pill pill-approval">Approval</span>.</li>
+  <li><strong>Execute &amp; verify:</strong> pods rescheduled, node temps fall, alarms clear, incident report generated with full evidence chain.</li>
+</ol>
+<h2>3. The Data &amp; Infrastructure (all free, all local, all Docker)</h2>
+
+<p>No public data center will let us power-cycle its servers. So we simulate a full stack where every layer is a real API — the agent's work is genuine API interaction, only the hardware is virtual.</p>
+
+<table>
+  <tr><th>Layer</th><th>Tool</th><th>What it provides</th><th>Agent uses it for</th></tr>
+  <tr>
+    <td><strong>App/Orchestration</strong></td>
+    <td><a href="https://kind.sigs.k8s.io">kind</a> (Kubernetes-in-Docker, 3 nodes)</td>
+    <td>Real k8s API: pods, nodes, deployments</td>
+    <td>Detect NotReady nodes, drain/cordon, reschedule workloads</td>
+  </tr>
+  <tr>
+    <td><strong>Metrics</strong></td>
+    <td>Prometheus + node-exporter</td>
+    <td>Time-series CPU/mem/thermal metrics</td>
+    <td>Corroborate alarms with observed metric behavior</td>
+  </tr>
+  <tr>
+    <td><strong>Hardware (BMC)</strong></td>
+    <td>Custom mock BMC (FastAPI) implementing <strong>Redfish</strong> (DMTF standard)</td>
+    <td>Power state, temps, fans, watts, SEL event log, <code>ComputerSystem.Reset</code> action, state loop (load→temp→fan→wattage)</td>
+    <td>Check if node is off vs hung, read thermal truth, power-cycle with approval</td>
+  </tr>
+  <tr>
+    <td><strong>Inventory</strong></td>
+    <td><a href="https://demo.netbox.dev">NetBox</a> (demo instance or local Docker)</td>
+    <td>Racks, devices, tenants, cables, IPs</td>
+    <td>Map alarm → rack/tenant → human-readable impact</td>
+  </tr>
+  <tr>
+    <td><strong>Alarm bus</strong></td>
+    <td>Alertmanager</td>
+    <td>Industry-standard alert API (<code>/api/v2/alerts</code>)</td>
+    <td>Ingest alarm stream (the agent's input signal)</td>
+  </tr>
+  <tr>
+    <td><strong>Chaos</strong></td>
+    <td>Custom chaos injector script</td>
+    <td>Fires realistic alarm cascades + real faults (kill containers, spike metrics)</td>
+    <td>Deterministic, repeatable demo scenarios</td>
+  </tr>
+</table>
+
+<h3>Why a custom mock BMC instead of DMTF's stock mockups?</h3>
+<ul>
+  <li>DMTF <em>Redfish-Mockup-Server</em> is static JSON — temps never move, power-cycle does nothing. Useless for a live demo.</li>
+  <li>Our mock has a <strong>state loop</strong>: fake load drives CPU temp up, fans respond, wattage follows — and a chaos endpoint to inject thermal spikes, PSU failure, hung hosts, SEL entries.</li>
+  <li>We control the drama → deterministic, repeatable demo for judges.</li>
+</ul>
+
+<h3>Why Ignition SCADA was considered but skipped</h3>
+<p>Ignition Maker Edition is free and has simulator drivers + tag alarms, but demands ~half a day of Gateway/config learning — too risky in a one-day hack. The alarm-bus pattern (Alertmanager) is the industry-standard intake format anyway, and keeps the focus on agent logic, not SCADA plumbing.</p>
+
+<h3>System architecture</h3>
+<div class="diagram">
+┌────────────────────────── AGENT HARNESS (TrueFoundry) ──────────────────────────┐
+│                                                                                 │
+│   ┌─────────────┐    MCP     ┌──────────────┐     MCP     ┌─────────────────┐  │
+│   │  Triager    │◄──────────►│ Alertmanager │◄───────     │  Subagents      │  │
+│   │  Agent      │            │  (alarm bus) │   chaos     │  · correlator   │  │
+│   │  (planner/  │            └──────────────┘  injector   │  · classifier   │  │
+│   │   decider)  │                                          │  · enricher     │  │
+│   └──────┬──────┘                                          └────────┬────────┘  │
+│          │ sandboxed scripts / approvals loop                       │           │
+└──────────┼──────────────────────────────────────────────────────────┼───────────┘
+           │  MCP                                                      │ MCP
+   ┌───────▼────────┐   ┌──────────────┐   ┌───────────┐   ┌────────▼─────────┐
+   │  Mock BMC      │   │  kind k8s    │   │ Prometheus│   │  NetBox          │
+   │  (Redfish API) │   │  (3 nodes)   │   │ (metrics) │   │  (inventory)     │
+   │  power/thermal │   │  drain/evict │   │           │   │  racks/tenants   │
+   └────────────────┘   └──────────────┘   └───────────┘   └──────────────────┘
+
+        👤 Human: approves/rejects destructive actions (power-cycle, shutdown) via
+           harness approval gate — before anything irreversible happens
+</div>
+<h2>4. Why This Qualifies for the Hackathon</h2>
+
+<h3>🏆 Prize-track mapping</h3>
+<table>
+  <tr><th>Track</th><th>Prize</th><th>How we hit it</th></tr>
+  <tr>
+    <td><strong>Best Use of the Agent Harness</strong></td>
+    <td>NVIDIA DGX Spark ($5,000, TrueFoundry)</td>
+    <td>Every harness feature used <em>structurally</em>, not as garnish:
+      <ul>
+        <li><strong>MCP tools:</strong> Alertmanager, Redfish/BMC, k8s, Prometheus, NetBox — 5 real integrations</li>
+        <li><strong>Subagents:</strong> correlator + classifier + enricher run in parallel per incident</li>
+        <li><strong>Human approvals:</strong> power-cycle / shutdown pause for sign-off — the demo centerpiece</li>
+        <li><strong>Sandboxed execution:</strong> diagnostic scripts run isolated</li>
+        <li><strong>Persistent sessions:</strong> long-running remediation (drain → verify) survives refresh/restart</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Best Code Quality</strong></td>
+    <td>Mac Mini (Qodo)</td>
+    <td>Control-plane code deserves real software practices:
+      <ul>
+        <li>Typed modules, tests on correlation &amp; decision logic (pure, deterministic)</li>
+        <li>CI from hour one; every PR through Qodo review, findings triaged by severity</li>
+        <li>Idempotent remediation actions, structured logging, audit trail of approvals</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Best Blog Post</strong></td>
+    <td>Keychron keyboard</td>
+    <td>The narrative writes itself: "40 alarms, 1 root cause, 0 humans paged, 1 approval." We log the full timeline during the day and publish the write-up with architecture diagrams + judge demo notes.</td>
+  </tr>
+</table>
+<p><em>Rule: a team can win one track, not all — but this project is genuinely competitive in all three.</em></p>
+
+<h3>🎯 Fit with the hackathon's own framing</h3>
+<p>The event's stated bar: "A chatbot answers questions. An agent acts on them." The suggested <strong>incident responder</strong> idea is: "Investigates an alert with read-only queries, then asks a person before restarting or rolling anything back." DC-Sentinel <em>is</em> that idea, at data-center scale, with hardware-level actions (Redfish power control) that no other suggested idea touches.</p>
+
+<h3>👔 Who this impresses</h3>
+<ul>
+  <li><strong>TrueFoundry judges:</strong> the harness does real work — every decision flows model → tools → results → loop; no hard-coded runbook replay.</li>
+  <li><strong>Qodo judges:</strong> remediation code is safety-critical by nature; tests + review discipline map directly to their "treat a hackathon repo like real software" criterion.</li>
+  <li><strong>Everyone:</strong> the demo is visual and dramatic — alarms flooding in, subagents fanning out, a human approval card, a server physically (virtually) power-cycling back to life.</li>
+</ul>
+
+<h2>5. Scope Cut for One Day (reality check)</h2>
+<div class="card">
+  <h3>✅ In scope (must-have)</h3>
+  <ul>
+    <li>Mock BMC with state loop + chaos endpoint (pre-built before event day)</li>
+    <li>Alertmanager + chaos injector with 2 scenarios: CRAC failure cascade, hung node</li>
+    <li>Agent loop: ingest → correlate → enrich (Redfish + NetBox) → propose → approve → execute → verify</li>
+    <li>Approval gate on power-cycle + shutdown</li>
+    <li>kind cluster running demo workloads; drain/reschedule as the safe auto-action</li>
+    <li>Qodo wired into CI from the first commit</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>⛔ Out of scope (say no)</h3>
+  <ul>
+    <li>Real Ignition/SCADA integration</li>
+    <li>Multi-rack topology, >2 fault scenarios, real thermal physics</li>
+    <li>Web dashboard (agent transcript + harness UI is the demo surface)</li>
+    <li>NetBox writes (read-only enrichment)</li>
+  </ul>
+</div>
+
+<h3>Build order (pre-work → event day)</h3>
+<div class="flow">
+  <span class="step">Pre: mock BMC + chaos injector + kind stack</span><span class="arrow">→</span>
+  <span class="step">Hour 1: repo, CI, Qodo PR flow</span><span class="arrow">→</span>
+  <span class="step">Hour 2–3: MCP wrappers (Alertmanager, Redfish)</span><span class="arrow">→</span>
+  <span class="step">Hour 4–6: agent loop + approvals</span><span class="arrow">→</span>
+  <span class="step">Hour 7: subagents + NetBox enrichment</span><span class="arrow">→</span>
+  <span class="step">Hour 8: demo rehearsal, blog draft</span>
+</div>
+
+<h2>6. Glossary for Newcomers</h2>
+<ul>
+  <li><strong>BMC (Baseboard Management Controller):</strong> chip on a server motherboard that runs independently of the OS — control power and read sensors even when the machine is off or hung. Accessed via <strong>Redfish</strong>.</li>
+  <li><strong>Redfish:</strong> DMTF industry-standard REST/JSON API for server hardware management (power on/off, temps, fans, event logs).</li>
+  <li><strong>SEL (System Event Log):</strong> hardware error log readable from the BMC — DIMM errors, PSU faults, thermal trips.</li>
+  <li><strong>kind:</strong> runs a real Kubernetes cluster inside Docker containers — used for local testing and demos.</li>
+  <li><strong>MCP (Model Context Protocol):</strong> standard way for agents to connect to external tools/APIs — the harness speaks it natively.</li>
+  <li><strong>Alertmanager:</strong> the de-facto standard alert-routing service in the Prometheus ecosystem; alarms land there as JSON.</li>
+  <li><strong>NetBox:</strong> open-source data center inventory (racks, devices, tenants) — source of truth for "what is affected".</li>
+  <li><strong>Alert storm / fatigue:</strong> one failure → hundreds of alerts → humans stop trusting or noticing them.</li>
+  <li><strong>Triage:</strong> turning a pile of raw alarms into "here is the root cause, here is the blast radius, here is what to do."</li>
+  <li><strong>Approval gate:</strong> agent must pause and get a human "yes" before any irreversible action (power-off, reboot, delete).</li>
+</ul>
+
+<h2>7. Decision Log (do not re-litigate)</h2>
+<table>
+  <tr><th>#</th><th>Decision</th><th>Rationale</th><th>Re-open only if…</th></tr>
+  <tr>
+    <td>D1</td>
+    <td><strong>Skip Ignition SCADA → use alarm-bus pattern (Alertmanager)</strong></td>
+    <td>Ignition Maker = ~half day of Gateway/config learning; no public mock alarm API exists. Alertmanager is the industry-standard intake format, zero setup, deterministic. Market validation for alarm triage is independent of the SCADA brand.</td>
+    <td>Team gains prior Ignition experience, or judges explicitly require SCADA authenticity.</td>
+  </tr>
+  <tr>
+    <td>D2</td>
+    <td><strong>Custom mock BMC over DMTF Redfish-Mockup-Server</strong></td>
+    <td>Stock mockup is static JSON — no moving temps, power-cycle is a no-op. Custom FastAPI gives state loop + chaos injection → live, repeatable demo.</td>
+    <td>Redfish-Interface-Emulator proves stateful enough in a 30-min spike.</td>
+  </tr>
+  <tr>
+    <td>D3</td>
+    <td><strong>NetBox read-only</strong></td>
+    <td>Enrichment only (rack/tenant context). Writes add auth + nightly-reset risk, no demo value.</td>
+    <td>Never.</td>
+  </tr>
+  <tr>
+    <td>D4</td>
+    <td><strong>k8s actions limited to drain/cordon/reschedule</strong></td>
+    <td>Safe auto-actions; destructive hardware ops stay behind approval gate in Redfish layer — clean separation of auto vs approval.</td>
+    <td>Never.</td>
+  </tr>
+</table>
+
+<footer>
+  Prepared for the Agent Harness Hackathon · Agent Harness by TrueFoundry · Prizes: NVIDIA DGX Spark, Mac Mini (Qodo), Keychron · Team of 1–4 · Repo must be open source.
+</footer>
+</div>
+</body>
+</html>
