@@ -1,1 +1,1 @@
-"""MCP servers for the Hush data-center agent. Populated in A3/A4."""
+"""MCP servers exposing the simulated data center to the Hush agent."""
