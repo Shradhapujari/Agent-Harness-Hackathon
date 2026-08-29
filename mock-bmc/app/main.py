@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -44,6 +45,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(node_ids: list[str] | None = None, tick_interval_s: float = 1.0) -> FastAPI:
     """Build the mock-BMC FastAPI application."""
+    if not math.isfinite(tick_interval_s) or tick_interval_s <= 0:
+        raise ValueError("tick_interval_s must be a positive finite number")
     if node_ids is None:
         node_ids = [f"R4-N{i:02d}" for i in range(1, 13)]
     fleet = Fleet(node_ids)
