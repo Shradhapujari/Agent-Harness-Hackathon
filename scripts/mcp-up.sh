@@ -13,6 +13,11 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+# Same values the controller reads, so the stack and the run agree on ports.
+# shellcheck source=scripts/lib/env.sh
+. "scripts/lib/env.sh"
+hush_load_env .env
 mkdir -p runs
 
 SERVERS=(alertmanager:9101 redfish:9102 kubernetes:9103 prometheus:9104 netbox:9105)
@@ -49,6 +54,14 @@ else
     > "runs/mcp-kube-proxy.log" 2>&1 &
   echo $! > "runs/mcp-kube-proxy.pid"
   echo "  kubernetes proxy started on $KUBE_PORT (pid $!)"
+  # Not fatal: the MCP servers are what `make up` promises, and a laptop with no
+  # cluster still gets a working stack. Only N8's probe goes without.
+  for _ in $(seq 1 20); do
+    listening "$KUBE_PORT" && break
+    sleep 0.5
+  done
+  listening "$KUBE_PORT" || \
+    echo "  kubernetes proxy did not bind $KUBE_PORT; see runs/mcp-kube-proxy.log" >&2
 fi
 
 # Give the last one a moment to bind so `make up && make smoke` does not race.

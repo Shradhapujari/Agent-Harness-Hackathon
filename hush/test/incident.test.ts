@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { NodeFn } from "../src/graph.js";
+import { LIMITS, type NodeFn } from "../src/graph.js";
 import { runIncident, type IncidentDependencies } from "../src/incident.js";
 import type { RunState } from "../src/state.js";
 import type { HarnessClient } from "../src/trueforge.js";
 import { action, alert, evidence, incident } from "./helpers.js";
 
 const start = new Date("2026-08-29T12:00:00.000Z");
+
+/** A clock that walks these instants and then holds at the last one. */
+function sequence(...instants: Date[]): () => Date {
+  const queue = [...instants];
+  let current = instants[0] ?? start;
+  return () => {
+    current = queue.shift() ?? current;
+    return current;
+  };
+}
 
 function dependencies(
   nodes: NonNullable<IncidentDependencies["nodes"]>,
@@ -75,12 +85,11 @@ describe("B3 incident runner", () => {
 
   it("checkpoints an escalation when the run timeout is exceeded", async () => {
     const watch = vi.fn<NodeFn>();
-    const times = [
-      start,
-      new Date(start.getTime() + 901_000),
-      new Date(start.getTime() + 901_000)
-    ];
-    const deps = dependencies({ N0: watch }, () => times.shift() ?? times[0]!);
+    // initialState, then the loop entry, then the first budget check.
+    const deps = dependencies(
+      { N0: watch },
+      sequence(start, start, new Date(start.getTime() + 901_000))
+    );
 
     const result = await runIncident({ until: "N3" }, deps.value, vi.fn());
 
@@ -242,16 +251,83 @@ describe("B4 resume runner", () => {
     expect(result.runStartedAt).toBe(start.toISOString());
   });
 
+  it("carries spent budget across resumes so restarts cannot extend the run", async () => {
+    // Excluding stopped time must not hand every resume a fresh full budget,
+    // or repeated restarts run past RUN_TIMEOUT_S forever (Qodo, PR #20).
+    const resumedAt = new Date(start.getTime() + 3_600_000);
+    const enrich = vi.fn<NodeFn>();
+    const escalate = vi.fn<NodeFn>().mockResolvedValue({});
+    const deps = dependencies(
+      { N2: enrich, N9: escalate },
+      sequence(resumedAt, new Date(resumedAt.getTime() + 1_000))
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      budgetSpentMs: LIMITS.RUN_TIMEOUT_S * 1000 - 500,
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(enrich).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ outcome: "escalated" });
+    expect(result.timeline.map((item) => item.event)).toContain("run_timeout");
+  });
+
+  it("records the budget it spent on every checkpoint", async () => {
+    const deps = dependencies(
+      {
+        N2: async () => ({
+          evidence: [
+            evidence("redfish"),
+            evidence("netbox"),
+            evidence("kubernetes")
+          ]
+        }),
+        N3: async () => ({ actions: [action()] })
+      },
+      sequence(start, new Date(start.getTime() + 4_000))
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      budgetSpentMs: 10_000,
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    await runIncident({ until: "N3" }, deps.value, vi.fn(), checkpoint);
+
+    // 10 s carried in, plus the 4 s this resume spent.
+    expect(deps.saved.at(-1)?.budgetSpentMs).toBe(14_000);
+  });
+
   it("still escalates a resumed run that runs past its own budget", async () => {
     const resumedAt = new Date(start.getTime() + 3_600_000);
-    const times = [
-      resumedAt,
-      resumedAt,
-      new Date(resumedAt.getTime() + 901_000),
-      new Date(resumedAt.getTime() + 901_000)
-    ];
     const enrich = vi.fn<NodeFn>();
-    const deps = dependencies({ N2: enrich }, () => times.shift() ?? times[0]!);
+    const deps = dependencies(
+      { N2: enrich },
+      sequence(resumedAt, new Date(resumedAt.getTime() + 901_000))
+    );
     const checkpoint: RunState = {
       graphId: "hush-incident",
       runId: "inc-20260829-abcd",

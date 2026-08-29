@@ -239,6 +239,35 @@ Until this is settled, a demo take ends at "destructive action approved and
 executed, node back to Ready" and then escalates. The approval beat, which is
 what the judging criteria ask for, is unaffected.
 
+## Qodo findings on PR #20
+
+Both accepted; both were real.
+
+### Resume reset the run budget
+
+The first version of finding 10's fix handed every resume a fresh
+`RUN_TIMEOUT_S`. That fixes the wrong half of the problem: excluding the time a
+run spent stopped is right, but a fresh budget per resume means repeated
+restarts run past the bound forever, and the bound is a safety limit.
+
+`RUN_TIMEOUT_S` now bounds the time a run *spends*, not the wall clock since it
+started. `RunState` carries `budgetSpentMs`, every checkpoint stamps it, and a
+resume gets only what is left. `specs/graph.md` §2 updated with the field.
+
+### The stack scripts and the controller could disagree about ports
+
+`npm run incident` reads the root `.env` (finding 4) but `make up`, `make down`
+and `make smoke` did not. Move `HUSH_KUBERNETES_PORT` in `.env` and the stack
+starts the proxy on 8001 while the controller polls somewhere else — the same
+class of gap as finding 3, reintroduced from the other side.
+
+`scripts/lib/env.sh` loads the file for all three scripts, with an
+already-exported variable winning so `HUSH_KUBERNETES_PORT=8002 make up` still
+overrides. It skips `export FOO=bar` lines deliberately: node's `--env-file`
+does not treat those as assignments either, and the two parsers have to agree or
+the scripts act on a value the controller never saw. Verified by pointing `.env`
+at port 8123 and watching `make up` and `make smoke` both follow.
+
 ## Still owed by this checkpoint
 
 - **`crac` end to end after these fixes.** The `hang` path is verified live;

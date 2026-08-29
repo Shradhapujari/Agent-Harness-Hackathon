@@ -8,6 +8,11 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Same values the controller reads, so the stack and the run agree on ports.
+# shellcheck source=scripts/lib/env.sh
+. "scripts/lib/env.sh"
+hush_load_env .env
+
 PORTS="9101 9102 9103 9104 9105 ${HUSH_KUBERNETES_PORT:-8001}"
 
 for pidfile in runs/mcp-*.pid; do
@@ -37,7 +42,7 @@ for port in $PORTS; do
   for pid in $(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null); do
     command_line="$(ps -o command= -p "$pid" 2>/dev/null)"
     case "$command_line" in
-      *hush-mcp*|*"kubectl"*proxy*)
+      *hush-mcp*|*kubectl*proxy*--port="$port"*)
         kill "$pid" 2>/dev/null && echo "  stopped a server still holding $port (pid $pid)"
         ;;
       *)

@@ -7,6 +7,11 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Same values the controller reads, so the stack and the run agree on ports.
+# shellcheck source=scripts/lib/env.sh
+. "scripts/lib/env.sh"
+hush_load_env .env
+
 BMC_URL="${HUSH_BMC_URL:-http://127.0.0.1:8100}"
 PROM_URL="${HUSH_PROMETHEUS_URL:-http://127.0.0.1:9090}"
 AM_URL="${HUSH_ALERTMANAGER_URL:-http://127.0.0.1:9093}"

@@ -9,15 +9,16 @@ const Output = z.object({ evidence: z.array(Evidence) });
 // A field-level example, not the type's name: given `["Evidence"]` the model
 // returned an array of the string "Evidence", then objects with no `id` and
 // layers outside the enum, and burned both parse retries doing it (I2).
-const evidenceExample = {
-  id: "string, unique within the run",
-  layer: "redfish|netbox|kubernetes|prometheus|web",
-  summary: "string, <=300 characters",
-  data: {},
-  source: "live|fallback"
-};
 const schema = JSON.stringify({
-  evidence: [evidenceExample]
+  evidence: [
+    {
+      id: "string, unique within the run",
+      layer: "redfish|netbox|kubernetes|prometheus|web",
+      summary: "string, <=300 characters",
+      data: {},
+      source: "live|fallback"
+    }
+  ]
 });
 const required = ["redfish", "netbox", "kubernetes"] as const;
 

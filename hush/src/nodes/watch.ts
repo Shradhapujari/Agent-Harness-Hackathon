@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 
-import { type NodeFn } from "../graph.js";
+import { LIMITS, type NodeFn } from "../graph.js";
 import { Alert, type Alert as AlertValue } from "../state.js";
-import { stormBurst, isStorm } from "../storm.js";
+import { firingAlerts, stormBurst } from "../storm.js";
 import { timeline } from "./shared.js";
 
 type Fetch = typeof globalThis.fetch;
@@ -42,9 +42,11 @@ export function createWatch(
         .filter((alert): alert is AlertValue => alert !== undefined);
       const observed = context.clock();
       // The burst is the storm; `alerts` still carries everything firing,
-      // because classifying the rest as symptom or noise is N1's job.
-      const burst = stormBurst(alerts);
-      if (isStorm(alerts)) {
+      // because classifying the rest as symptom or noise is N1's job. The
+      // burst is measured over the same set `isStorm` gates on, so the logged
+      // count can never disagree with the decision it explains.
+      const burst = stormBurst(firingAlerts(alerts));
+      if (burst.length >= LIMITS.STORM_MIN) {
         const date = observed.toISOString().slice(0, 10).replaceAll("-", "");
         const runId = `inc-${date}-${randomBytes(2).toString("hex")}`;
         return {

@@ -60,6 +60,8 @@ export const RunState = z.object({
   graphId: z.literal("hush-incident"),
   runId: z.string().regex(/^inc-\d{8}-[0-9a-fA-F]{4}$/),
   runStartedAt: z.string().datetime().optional(),
+  /** Milliseconds this run has spent actually running, across all resumes. */
+  budgetSpentMs: z.number().nonnegative().optional(),
   sessionId: z.string().optional(),
   pendingActionId: z.string().optional(),
   scenarioHint: z.string().optional(),

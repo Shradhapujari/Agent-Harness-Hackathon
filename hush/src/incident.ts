@@ -82,16 +82,26 @@ export async function runIncident(
   const nodes = { ...DEFAULT_NODES, ...dependencies.nodes };
   let harness: HarnessClient | undefined;
 
-  // A resumed run gets a full budget from the moment it resumes. Measuring
-  // from `runStartedAt` instead charged the run for the time it spent stopped,
-  // so `hush resume` after a TrueForge restart escalated on its first
-  // iteration rather than continuing the incident (I2). `runStartedAt` still
-  // records when the incident began, which is what the report wants.
-  const deadlineAt =
-    (checkpoint
-      ? dependencies.clock().getTime()
-      : Date.parse(state.runStartedAt!)) +
-    LIMITS.RUN_TIMEOUT_S * 1000;
+  // RUN_TIMEOUT_S bounds the time this run *spends*, not the wall clock since
+  // it started. Measuring from `runStartedAt` charged the run for the hours it
+  // sat stopped, so `hush resume` after a TrueForge restart escalated on its
+  // first iteration (I2); handing every resume a fresh full budget instead
+  // would let repeated restarts run past the bound forever. So: carry the
+  // spent time in the checkpoint and give a resume only what is left.
+  // `runStartedAt` still records when the incident began, for the report.
+  const enteredAt = dependencies.clock().getTime();
+  const spentBefore = state.budgetSpentMs ?? 0;
+  const spent = () =>
+    spentBefore + (dependencies.clock().getTime() - enteredAt);
+  const remainingMs = () => LIMITS.RUN_TIMEOUT_S * 1000 - spent();
+  // Stamps the spent time onto every checkpoint without touching `state`: the
+  // N9 session checkpoint deliberately assigns `state` only after its save
+  // resolves and the abort check passes, and that ordering has to hold.
+  const stamped = (next: RunState): RunState => ({
+    ...next,
+    budgetSpentMs: spent()
+  });
+  const save = (next: RunState) => dependencies.save(stamped(next));
 
   // Marks the restart in the report's timeline. It rides along on the next
   // checkpoint the loop writes rather than forcing one of its own: an extra
@@ -110,7 +120,7 @@ export async function runIncident(
   }
 
   while (state.node !== "DONE") {
-    const remaining = deadlineAt - dependencies.clock().getTime();
+    const remaining = remainingMs();
     const terminal = state.node === "N9" || state.node === "N10";
     if (remaining <= 0 && !terminal) {
       state = merge(state, {
@@ -124,7 +134,7 @@ export async function runIncident(
           }
         ]
       });
-      await dependencies.save(state);
+      await save(state);
       break;
     }
 
@@ -137,7 +147,7 @@ export async function runIncident(
         const sessionId = await harness!.openSession(controller.signal);
         controller.signal.throwIfAborted();
         const checkpoint = merge(state, { sessionId });
-        await dependencies.save(checkpoint);
+        await save(checkpoint);
         controller.signal.throwIfAborted();
         state = checkpoint;
       }
@@ -172,7 +182,7 @@ export async function runIncident(
             }
           ]
         });
-        await dependencies.save(state);
+        await save(state);
         break;
       }
       state = merge(state, {
@@ -186,16 +196,17 @@ export async function runIncident(
           }
         ]
       });
-      await dependencies.save(state);
+      await save(state);
       break;
     }
     state = merge(state, patch);
     const completed = node;
     state = { ...state, node: EDGES[completed](state) };
-    await dependencies.save(state);
+    await save(state);
     if (completed === options.until) break;
   }
 
+  state = stamped(state);
   write({
     runId: state.runId,
     incident: state.incident,
