@@ -133,3 +133,32 @@ def test_correlation_does_not_mutate_its_input(crac: list[Alert]) -> None:
     before: list[dict[str, Any]] = json.loads(json.dumps(crac))
     correlate(crac)
     assert json.loads(json.dumps(crac)) == before
+
+
+def test_stale_alerts_do_not_hijack_the_window() -> None:
+    """I1: leftovers from an earlier scenario must not turn a live storm into noise.
+
+    Alertmanager keeps the original ``startsAt`` when a fingerprint is re-posted,
+    so `hush-chaos hang` symptoms resurface inside a later `crac` storm carrying
+    twenty-minute-old timestamps.
+    """
+    stale = [_alert(f"old{i}", i, "kubernetes", rack="R4") for i in range(8)]
+    storm = [_alert(f"new{i}", 1200 + i, "bmc", rack="R4") for i in range(40)]
+    result = correlate(stale + storm)
+    assert [c["key"]["rack"] for c in result["clusters"]] == ["R4"]
+    assert len(result["clusters"][0]["fingerprints"]) == 40
+    assert result["noise"] == [a["fingerprint"] for a in stale]
+
+
+def test_lowest_layer_leads_even_when_a_higher_layer_fired_first() -> None:
+    """The rack cooked the machine, so the CRAC alert leads the trip it caused.
+
+    FacilityAmbientHigh carries `for: 10s` and ThermalTrip carries none, so the
+    facility alert is always the later of the two on the live bus (found at I1).
+    """
+    alerts = [
+        _alert("trip", 0, "bmc", rack="R4"),
+        _alert("ambient", 10, "facility", rack="R4"),
+        _alert("notready", 30, "kubernetes", rack="R4"),
+    ]
+    assert correlate(alerts)["clusters"][0]["leading_alert"] == "ambient"
