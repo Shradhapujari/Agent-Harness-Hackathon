@@ -534,7 +534,7 @@ TrueForge:
 npx @truefoundry/trueforge@latest          # http://localhost:8790
 ```
 
-Settings → Models: add an OpenAI key, pick `openai/gpt-5.6-luna`. This is Hush's
+Settings → Models: add an OpenAI key, pick `openai/gpt-5-6-luna`. This is Hush's
 only supported model; do not configure a fallback. Settings → Sandbox
 providers: Daytona key (needs sandbox **and** snapshot-create permission).
 Manual sanity check in chat: enable sandbox + subagents, ask "spawn two

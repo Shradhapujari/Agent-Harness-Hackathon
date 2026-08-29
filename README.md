@@ -40,7 +40,7 @@ failure cascade and a hung Kubernetes node.
 ## Technology
 
 Hush uses TrueForge in local mode with **OpenAI GPT-5.6-Luna only**
-(`openai/gpt-5.6-luna`). There is no alternate-model fallback. The controller
+(`openai/gpt-5-6-luna`). There is no alternate-model fallback. The controller
 is strict TypeScript; the mock BMC and planned MCP services are Python 3.12.
 The demo stack uses FastAPI/Redfish, Prometheus, Alertmanager, a three-node
 kind cluster, NetBox, and remote streamable-HTTP MCP servers.
@@ -88,7 +88,7 @@ cp .env.example .env
 ```
 
 Replace only the safe placeholders in `.env`. Keep
-`HUSH_MODEL=openai/gpt-5.6-luna`; Hush supports no other model. Never commit
+`HUSH_MODEL=openai/gpt-5-6-luna`; Hush supports no other model. Never commit
 `.env` or an API key.
 
 Run the checks that are available today:
@@ -113,13 +113,14 @@ npx @truefoundry/trueforge@latest
 ```
 
 Open `http://localhost:8790`, add an OpenAI API key under **Settings →
-Models**, and select `openai/gpt-5.6-luna`. Do not add a model fallback. Daytona
-is the planned sandbox provider.
+Models**, and select `openai/gpt-5-6-luna`. Do not add a model fallback. Daytona
+is the planned sandbox provider. If the provider dialog renders empty, configure
+it over the API instead: put the key in `~/.hush-openai-key` and run
+`uv run python scripts/configure_openai.py`, which never writes it to the repo.
 
-In **Settings → Skills**, choose **Import from GitHub** and import this public
-repository with the path `skills/hush-triage`. This one-time OAuth-backed step
-is intentionally not automated. With the five local MCP servers running,
-register or update their connectors and the `hush-operator` agent:
+With the five local MCP servers running, register or update the connectors, the
+`hush-triage` skill and the `hush-operator` agent — the skill lives at a public
+GitHub path, so it imports over REST with no OAuth step:
 
 ```bash
 cd hush
@@ -128,7 +129,7 @@ npm run register
 ```
 
 Set `TRUEFORGE_BASE_URL` to use a different local TrueForge URL. Keep
-`HUSH_MODEL=openai/gpt-5.6-luna`; other models are unsupported. Registration is
+`HUSH_MODEL=openai/gpt-5-6-luna`; other models are unsupported. Registration is
 idempotent and safe to rerun after changing the agent manifest or system prompt.
 
 ## Working agreements
@@ -149,8 +150,86 @@ idempotent and safe to rerun after changing the agent manifest or system prompt.
 - [Execution graph and MCP contracts](specs/graph.md)
 - [Implementation roadmap](specs/roadmap.md)
 - [Mock BMC guide](mock-bmc/README.md)
-- [DC-Sentinel ELI5](dc_sentinel_eli5_standalone.html) — kid-friendly, standalone
-  walkthrough of the project
+
+## DC-Sentinel ELI5
+
+_A robot detective for a giant computer building!_
+
+😱 Uh oh! → 🕵️ Robot investigates → 🙋 Asks permission → 💪 Fixes it → 🎉 All better!
+
+### 🏢 Part 1: What is a data center?
+
+Imagine a HUGE room full of computer shelves called **racks**. These
+computers run apps for lots of people, like YouTube or games. They get hot,
+so big fans called **CRAC units** blow cold air on them, like an air
+conditioner for robots.
+
+- 🖥️ Computer rack
+- ❄️ Cooling fan
+- 🔌 Power
+- 📦 Apps running
+
+### 😱 Part 2: The problem — 40 alarms, but only ONE boo-boo
+
+When ONE fan breaks, it gets hot. Hot makes computers panic. Then EVERYTHING
+starts beeping at once — like when one kid falls down and 40 people scream!
+A tired human has to figure out it's really just **ONE** problem.
+
+```
+🌡️ Fan breaks → 🔔🔔🔔 40 alarms screaming! → 🤖 DC-Sentinel says: "It's just ONE fan!"
+```
+
+### 🕵️ Part 3: Our robot detective's 3 helper friends
+
+DC-Sentinel doesn't work alone. It calls three little helper-bots who each
+look for clues:
+
+- 🧩 **Correlator** — groups the clues
+- 🏷️ **Classifier** — sorts what matters
+- 🔍 **Enricher** — checks the real thermometer
+
+Together they find: **"It's rack R4 — the fan died, and it's getting hot!"**
+
+### 🙋 Part 4: The most important rule — ASK FIRST!
+
+The robot can do SAFE things by itself. But for big scary things — like
+turning a computer OFF — it must ask a human "is this okay?" first. Just
+like you ask a grown-up before doing something big!
+
+- ✅ **Safe stuff — robot just does it:** move apps to a cooler rack
+- 🙋 **Big stuff — robot asks a human first:** turn off / power-cycle a
+  computer
+
+### 🎬 Part 5: The whole story, start to finish
+
+🔥 Fan breaks → 🔔 40 alarms ring → 🤖 Robot looks → 🧩 Finds 1 cause → 🙋
+Asks human → 💪 Fixes it → 🎉 All better + writes a report
+
+### 🧸 Part 6: How we practice (no real building!)
+
+We don't get to touch a REAL data center, so we build a pretend one on our
+own computer with toy versions that act just like the real thing — like a
+dollhouse that really works!
+
+- 🐳 Pretend computer racks
+- 🌡️ Pretend thermometer
+- 📋 Pretend building map
+- 💥 "Break it on purpose" button
+
+### 🏆 Part 7: Why judges will love it
+
+- 🧠 **Uses the robot toolkit fully** — talks to 5 real tools, uses
+  helper-bots, and always asks before big actions.
+- 🧹 **Neat, tested code** — built carefully with tests and reviews, like a
+  well-organized backpack.
+- 📖 **A great story to tell** — "40 alarms → 1 answer → 0 humans woken up."
+  Easy to remember, fun to say!
+
+_Made simple for show & tell 🎈 — DC-Sentinel, the Agent Harness Hackathon
+project._
+
+The standalone, illustrated version of this walkthrough lives in
+[`dc_sentinel_eli5_standalone.html`](dc_sentinel_eli5_standalone.html).
 
 ## Qodo Code Review Evidence
 
