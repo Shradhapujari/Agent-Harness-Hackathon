@@ -123,7 +123,9 @@ export const Action = z.object({
 export const RunState = z.object({
   graphId: z.literal("hush-incident"),
   runId: z.string(),
+  runStartedAt: z.string().optional(),       // immutable UTC start; preserves RUN_TIMEOUT_S across resume
   sessionId: z.string().optional(),        // TrueForge session, set in N1
+  pendingActionId: z.string().optional(),   // action selected by N4 for N5/N6/N7 routing
   scenarioHint: z.string().optional(),     // CLI only; never shown to the model
   node: z.enum(["N0","N1","N2","N3","N4","N5","N6","N7","N8","N9","N10","DONE"]),
   alerts: z.array(Alert),
