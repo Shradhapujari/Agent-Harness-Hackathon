@@ -308,7 +308,7 @@ export const REGISTRY: Record<string, { kind: "safe" | "destructive" | "read"; s
 {
   "name": "hush-operator",
   "manifest": {
-    "model": { "name": "openai/gpt-5.6-luna", "params": { "max_tokens": 8192, "temperature": 0.1, "parallel_tool_calls": true } },
+    "model": { "name": "openai/gpt-5.6-luna", "params": { "max_tokens": 8192, "parallel_tool_calls": true } },
     "instructions": "<contents of hush/prompts/system.md>",
     "config": {
       "iteration_limit": 60,
