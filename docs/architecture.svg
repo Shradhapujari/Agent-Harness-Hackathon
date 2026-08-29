@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Hush incident execution graph</title>
+  <desc id="desc">An alert storm flows through triage, parallel enrichment, planning, safe or approval-gated execution, verification, and reporting.</desc>
+  <defs>
+    <style>
+      .bg{fill:#0b1020}.box{fill:#17213b;stroke:#7dd3fc;stroke-width:2}.human{fill:#3a2138;stroke:#f9a8d4;stroke-width:2}.join{fill:#18352f;stroke:#6ee7b7;stroke-width:2}.t{fill:#f8fafc;font:600 18px system-ui,sans-serif}.s{fill:#cbd5e1;font:14px system-ui,sans-serif}.a{stroke:#94a3b8;stroke-width:2.5;fill:none;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#94a3b8"/></marker>
+  </defs>
+  <rect class="bg" width="1200" height="520" rx="18"/>
+  <text class="t" x="42" y="46">Hush: 40 alarms → one controlled incident</text>
+  <path class="a" d="M180 137H235"/><path class="a" d="M385 137H440"/><path class="a" d="M590 137H645"/><path class="a" d="M795 137H850"/><path class="a" d="M1000 137H1055"/>
+  <rect class="box" x="30" y="90" width="150" height="94" rx="12"/><text class="t" x="52" y="124">N0 Watch</text><text class="s" x="52" y="151">Alertmanager</text><text class="s" x="52" y="171">storm threshold</text>
+  <rect class="box" x="235" y="90" width="150" height="94" rx="12"/><text class="t" x="257" y="124">N1 Triage</text><text class="s" x="257" y="151">correlate + classify</text><text class="s" x="257" y="171">incident card</text>
+  <rect class="join" x="440" y="90" width="150" height="94" rx="12"/><text class="t" x="462" y="124">N2 Enrich</text><text class="s" x="462" y="151">3 subagents</text><text class="s" x="462" y="171">evidence.png</text>
+  <rect class="box" x="645" y="90" width="150" height="94" rx="12"/><text class="t" x="667" y="124">N3 Plan</text><text class="s" x="667" y="151">ranked actions</text><text class="s" x="667" y="171">evidence-linked</text>
+  <rect class="box" x="850" y="90" width="150" height="94" rx="12"/><text class="t" x="872" y="124">N4 Route</text><text class="s" x="872" y="151">code-owned</text><text class="s" x="872" y="171">safety policy</text>
+  <rect class="box" x="1055" y="90" width="120" height="94" rx="12"/><text class="t" x="1077" y="124">N5 Safe</text><text class="s" x="1077" y="151">cordon</text><text class="s" x="1077" y="171">drain</text>
+  <path class="a" d="M925 184V269H840"/><path class="a" d="M840 316H745"/><path class="a" d="M925 316H1015"/><path class="a" d="M1075 363V424H990"/><path class="a" d="M745 363V424H840"/>
+  <rect class="human" x="780" y="269" width="145" height="94" rx="12"/><text class="t" x="802" y="303">N6 Approve</text><text class="s" x="802" y="330">human allow/deny</text><text class="s" x="802" y="350">Redfish only</text>
+  <rect class="box" x="1015" y="269" width="160" height="94" rx="12"/><text class="t" x="1037" y="303">N7 Destructive</text><text class="s" x="1037" y="330">approved reset</text><text class="s" x="1037" y="350">same turn resumes</text>
+  <rect class="join" x="840" y="410" width="150" height="82" rx="12"/><text class="t" x="862" y="444">N8 Verify</text><text class="s" x="862" y="470">fresh probes</text>
+  <path class="a" d="M840 451H670"/><rect class="box" x="510" y="410" width="160" height="82" rx="12"/><text class="t" x="532" y="444">N10 Report</text><text class="s" x="532" y="470">auditable timeline</text>
+  <text class="s" x="42" y="247">N2 fan-out: Redfish · NetBox · Kubernetes + Prometheus</text>
+  <text class="s" x="42" y="276">Recovery failure routes through N9 escalation, then always ends at N10.</text>
+</svg>
