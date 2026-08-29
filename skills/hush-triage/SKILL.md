@@ -23,7 +23,9 @@ description: Runbook for correlating data-center alarm storms to one root cause 
 1. Cordon and drain affected Kubernetes nodes before physical intervention.
 2. For `crac_failure`, propose `GracefulShutdown` only for nodes at or above 90 C.
 3. For `host_hang`, propose `ForceRestart` for the hung system.
-4. After verified recovery, uncordon nodes and silence residual alerts for ten minutes.
+
+The current graph ends after verification and reporting. Do not place uncordon
+or alert-silencing actions in the pre-verification remediation plan.
 
 Read [references/redfish-reset-types.md](references/redfish-reset-types.md) before proposing a Redfish reset.
 

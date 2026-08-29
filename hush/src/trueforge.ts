@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import type { TrueForgeApi } from "@truefoundry/trueforge-sdk";
@@ -160,14 +159,14 @@ export class FakeHarness implements HarnessClient {
 export async function createHarness(
   sink?: (event: TrueForgeApi.TurnStreamingEvent) => void
 ): Promise<HarnessClient> {
-  if (process.env.HUSH_FAKE_HARNESS === "1")
-    return FakeHarness.fromFile(
-      process.env.HUSH_FAKE_HARNESS_FIXTURE ??
-        fileURLToPath(
-          new URL("../test/fixtures/session-crac.jsonl", import.meta.url)
-        ),
-      sink
-    );
+  if (process.env.HUSH_FAKE_HARNESS === "1") {
+    const fixture = process.env.HUSH_FAKE_HARNESS_FIXTURE;
+    if (!fixture)
+      throw new Error(
+        "HUSH_FAKE_HARNESS_FIXTURE is required until I1 records session-crac.jsonl"
+      );
+    return FakeHarness.fromFile(fixture, sink);
+  }
   return new Harness("hush-operator", sink);
 }
 export function lastJsonBlock(text: string): unknown {

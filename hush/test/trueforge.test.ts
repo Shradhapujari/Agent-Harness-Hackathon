@@ -42,10 +42,17 @@ describe("FakeHarness", () => {
     await expect(harness.turn()).rejects.toThrow("fixture exhausted");
   });
 
-  it("loads the default fixture and sends replayed events to the sink", async () => {
+  it("loads the configured fixture and sends replayed events to the sink", async () => {
     const events: TrueForgeApi.TurnStreamingEvent[] = [];
+    const directory = await mkdtemp(join(tmpdir(), "hush-factory-"));
+    const fixture = join(directory, "turns.jsonl");
+    await writeFile(
+      fixture,
+      `${JSON.stringify({ text: "fixture turn", events: [{ type: "turn.done" }] })}\n`,
+      "utf8"
+    );
     vi.stubEnv("HUSH_FAKE_HARNESS", "1");
-    vi.stubEnv("HUSH_FAKE_HARNESS_FIXTURE", undefined);
+    vi.stubEnv("HUSH_FAKE_HARNESS_FIXTURE", fixture);
 
     const harness = await createHarness((event) => events.push(event));
     const turn = await harness.turn("fake-session", "ignored", {
@@ -55,6 +62,15 @@ describe("FakeHarness", () => {
 
     expect(turn.text).toContain("fixture");
     expect(events).toEqual(turn.events);
+  });
+
+  it("explains that fake mode needs the I1 recording", async () => {
+    vi.stubEnv("HUSH_FAKE_HARNESS", "1");
+    vi.stubEnv("HUSH_FAKE_HARNESS_FIXTURE", undefined);
+
+    await expect(createHarness()).rejects.toThrow(
+      "HUSH_FAKE_HARNESS_FIXTURE is required until I1 records session-crac.jsonl"
+    );
   });
 });
 
