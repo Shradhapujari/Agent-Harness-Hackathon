@@ -10,7 +10,7 @@
     "format": "prettier --write .",
     "incident": "tsx src/cli.ts incident",
     "resume": "tsx src/cli.ts resume",
-    "register": "tsx scripts/register.ts"
+    "register": "node --env-file-if-exists=../.env --import tsx scripts/register.ts"
   },
   "dependencies": {
     "@truefoundry/trueforge-sdk": "^0.1.0",
