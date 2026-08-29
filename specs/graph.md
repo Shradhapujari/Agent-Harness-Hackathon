@@ -2,7 +2,7 @@
 
 Graph-engineering spec. Source principles: explicit typed state, single-
 responsibility nodes with output contracts, code-decided routing for known
-rules, LLM only where interpretation is needed, human checkpoints as
+rules, GPT-5.6-Luna only where interpretation is needed, human checkpoints as
 first-class nodes, idempotent side effects, hard termination limits, and
 `graph_id/run_id/node_id` on every log line and model/tool call.
 
@@ -240,7 +240,7 @@ Pure function in `mcp/hush_mcp/correlate.py`: group by `(rack, node)` derived
 from labels, bucket by `startsAt` within `window_s`, order clusters by size
 then earliest `first_seen`, mark single-alert clusters that flap (`resolved`
 then `firing`) as noise. Unit-tested with fixtures for scenario A and B. The
-LLM decides *what kind of* root cause the leading cluster is; code decides the
+GPT-5.6-Luna decides *what kind of* root cause the leading cluster is; code decides the
 grouping.
 
 ### `redfish` — http://127.0.0.1:9102/mcp
@@ -308,7 +308,7 @@ export const REGISTRY: Record<string, { kind: "safe" | "destructive" | "read"; s
 {
   "name": "hush-operator",
   "manifest": {
-    "model": { "name": "anthropic/claude-sonnet-4-6", "params": { "max_tokens": 8192, "temperature": 0.1, "parallel_tool_calls": true } },
+    "model": { "name": "openai/gpt-5.6-luna", "params": { "max_tokens": 8192, "temperature": 0.1, "parallel_tool_calls": true } },
     "instructions": "<contents of hush/prompts/system.md>",
     "config": {
       "iteration_limit": 60,

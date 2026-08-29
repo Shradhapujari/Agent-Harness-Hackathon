@@ -22,7 +22,7 @@ Hush is an **autonomous triager-operator agent** running on the
 TrueForge agent harness. Per incident it:
 
 1. Ingests the live alarm stream (Alertmanager).
-2. Correlates it down to one root cause (deterministic grouping + LLM classification).
+2. Correlates it down to one root cause (deterministic grouping + GPT-5.6-Luna classification).
 3. Enriches across three layers in parallel via subagents: hardware (Redfish),
    inventory (NetBox), orchestration/metrics (Kubernetes, Prometheus).
 4. Proposes ranked remediation actions with an explicit evidence chain.
