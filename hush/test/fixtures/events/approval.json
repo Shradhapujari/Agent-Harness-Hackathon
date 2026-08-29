@@ -1,12 +1,11 @@
 {
   "type": "tool.approval_required",
-  "id": "01m17ss9frm3rht5zb4t15hek2",
-  "createdAt": "2026-08-29T22:21:01.304Z",
+  "id": "id-1",
   "threadId": "main",
   "toolCalls": [
     {
-      "id": "call_vzLLdIbdkmpr3BQGjCMcHEuW",
-      "sourceEventId": "01m17ss7a51kn32nehcxztejqy"
+      "id": "id-2",
+      "sourceEventId": "sourceEventId-3"
     }
   ]
 }

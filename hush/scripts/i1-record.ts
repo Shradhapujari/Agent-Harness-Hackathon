@@ -20,6 +20,41 @@ const RUN_ID = "i1-crac";
 const NODE_ID = "N7";
 const EVENTS = `runs/${RUN_ID}/events.jsonl`;
 
+/** Identifiers are rewritten to stable placeholders; see `redact`. */
+const ids = new Map<string, string>();
+const ID_KEYS = new Set([
+  "id",
+  "turnId",
+  "previousTurnId",
+  "toolCallId",
+  "sourceEventId",
+  "sessionId"
+]);
+/** Run telemetry: timestamps and token counts belong in `runs/`, not in git. */
+const DROP_KEYS = new Set(["createdAt", "completedAt", "usage", "metrics"]);
+
+/**
+ * A fixture, not a run log: every identifier becomes a stable placeholder and
+ * every timestamp and token count is dropped, so the committed file records the
+ * shape of a held approval rather than one machine's execution history.
+ */
+function redact(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redact);
+  if (value === null || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (DROP_KEYS.has(key)) continue;
+    if (ID_KEYS.has(key) && typeof item === "string") {
+      const placeholder = ids.get(item) ?? `${key}-${ids.size + 1}`;
+      ids.set(item, placeholder);
+      out[key] = placeholder;
+      continue;
+    }
+    out[key] = redact(item);
+  }
+  return out;
+}
+
 /** Events worth keeping: the turn's shape and its tool traffic, not its prose. */
 const KEEP = new Set([
   "turn.created",
@@ -29,11 +64,11 @@ const KEEP = new Set([
   "turn.done"
 ]);
 
-function slim(turn: TurnResult): TurnResult {
-  return {
+function slim(turn: TurnResult): unknown {
+  return redact({
     ...turn,
     events: turn.events.filter((event) => KEEP.has(event.type))
-  };
+  });
 }
 
 await mkdir(`runs/${RUN_ID}`, { recursive: true });
@@ -41,11 +76,23 @@ await mkdir(`runs/${RUN_ID}`, { recursive: true });
 // leave a plausible-looking timeline that never happened.
 await writeFile(EVENTS, "");
 
+// Every line carries the run it belongs to (tech-stack.md §4); the session id
+// is added once the session exists.
+let eventLine = (event: TrueForgeApi.TurnStreamingEvent): string =>
+  JSON.stringify({ graph_id: "hush", run_id: RUN_ID, node_id: NODE_ID, event });
 const sink = (event: TrueForgeApi.TurnStreamingEvent): void => {
-  appendFileSync(EVENTS, `${JSON.stringify(event)}\n`);
+  appendFileSync(EVENTS, `${eventLine(event)}\n`);
 };
 const harness = new Harness("hush-operator", sink);
 const sessionId = await harness.openSession();
+eventLine = (event) =>
+  JSON.stringify({
+    graph_id: "hush",
+    run_id: RUN_ID,
+    node_id: NODE_ID,
+    session_id: sessionId,
+    event
+  });
 const log = createLogger("hush", RUN_ID, sessionId);
 log(NODE_ID, "session.opened");
 
@@ -89,7 +136,7 @@ const approvalEvent = reset.events.find(
 );
 await writeFile(
   "test/fixtures/events/approval.json",
-  `${JSON.stringify(approvalEvent, null, 2)}\n`
+  `${JSON.stringify(redact(approvalEvent), null, 2)}\n`
 );
 await writeFile(
   "test/fixtures/session-crac.jsonl",
