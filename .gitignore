@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# uv
+.venv/
+
+# Secrets — .env.example only (roadmap §0.3)
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts
+runs/
