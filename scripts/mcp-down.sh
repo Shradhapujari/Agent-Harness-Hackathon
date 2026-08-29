@@ -8,6 +8,8 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+PORTS="9101 9102 9103 9104 9105"
+
 for pidfile in runs/mcp-*.pid; do
   [ -e "$pidfile" ] || continue
   name="$(basename "$pidfile" .pid)"
@@ -25,4 +27,13 @@ for pidfile in runs/mcp-*.pid; do
     fi
   fi
   rm -f "$pidfile"
+done
+
+# A pid file can go missing — a second `make down`, a cleaned runs/ — while the
+# server is still holding its port, which would make the next `make up` skip it
+# and then fail its own readiness check.
+for port in $PORTS; do
+  for pid in $(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null); do
+    kill "$pid" 2>/dev/null && echo "  stopped a server still holding $port (pid $pid)"
+  done
 done

@@ -60,11 +60,13 @@ kind-down:
 	kind delete cluster --name $(KIND_CLUSTER)
 
 # NetBox is optional and slow to start (2-4 min to first API response). Every
-# NetBox tool answers from infra/netbox/seed.json until it is up.
+# NetBox tool answers from infra/netbox/seed.json until it is up. /api/status/
+# answers 403 without a token, which still means NetBox is serving.
 netbox-up:
 	$(COMPOSE) --profile netbox up -d
 	@for i in $$(seq 1 60); do \
-	  if curl -sf -o /dev/null $(NETBOX_URL)/api/status/; then echo "netbox ready"; exit 0; fi; \
+	  code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 $(NETBOX_URL)/api/status/); \
+	  case "$$code" in 200|403) echo "netbox ready ($$code)"; exit 0;; esac; \
 	  sleep 5; \
 	done; echo "netbox did not answer within 5 minutes" >&2; exit 1
 
