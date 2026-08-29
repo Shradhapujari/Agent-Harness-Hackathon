@@ -1,15 +1,20 @@
-.env
-.env.*
-!.env.example
-node_modules/
-.venv/
-.uv-cache/
-.local/
+# Python
 __pycache__/
+*.pyc
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-coverage/
+*.egg-info/
+
+# uv
+.venv/
+
+# Secrets — .env.example only (roadmap §0.3)
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts
 runs/
 reports/*.md
 !reports/samples/
@@ -17,3 +22,9 @@ reports/*.md
 *.sqlite
 *.sqlite3
 *.log
+
+# Node and local tooling
+node_modules/
+coverage/
+.uv-cache/
+.local/

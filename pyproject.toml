@@ -1,0 +1,40 @@
+[project]
+name = "hush-workspace"
+version = "0.0.0"
+requires-python = ">=3.12"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["mock-bmc", "mcp", "chaos"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "pyyaml>=6.0.3",
+    "types-pyyaml>=6.0.12.20260815",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+# The workspace packages are importable as bare top-level names, so isort has
+# to be told they are ours — otherwise tests outside a package sort them as
+# third-party.
+[tool.ruff.lint.isort]
+known-first-party = ["app", "hush_mcp", "hush_chaos"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

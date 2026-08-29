@@ -5,8 +5,9 @@ import math
 import random
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
@@ -14,14 +15,14 @@ def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-class PowerState(str, Enum):
+class PowerState(StrEnum):
     ON = "On"
     OFF = "Off"
     POWERING_ON = "PoweringOn"
     POWERING_OFF = "PoweringOff"
 
 
-class Health(str, Enum):
+class Health(StrEnum):
     OK = "OK"
     WARNING = "Warning"
     CRITICAL = "Critical"
@@ -53,9 +54,9 @@ class Machine:
     cpu_temp_c: float = 45.0
     inlet_temp_c: float = 22.0
     fan_pct: float = 20.0
-    psu_ok: dict = field(default_factory=lambda: {1: True, 2: True})
+    psu_ok: dict[int, bool] = field(default_factory=lambda: {1: True, 2: True})
     thermal_trip: bool = False
-    sel: list = field(default_factory=list)
+    sel: list[SelEntry] = field(default_factory=list)
     thermal_offset_c: float = 0.0
     thermal_until: float = 0.0
     power_watts: float = 180.0
@@ -94,7 +95,7 @@ class Fleet:
         self._sel_seq += 1
         entry = SelEntry(
             id=self._sel_seq,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             severity=severity,
             code=code,
             message=message,
@@ -116,7 +117,9 @@ class Fleet:
                 m.cpu_temp_c += (target_cpu - m.cpu_temp_c) * (1.0 - math.exp(-dt_s / 8.0))
                 target_fan = clamp(15.0 + 3.0 * (m.cpu_temp_c - 40.0), 15.0, 100.0)
                 m.fan_pct += (target_fan - m.fan_pct) * min(1.0, dt_s * 0.5)
-                m.power_watts = 90.0 + 1.8 * m.cpu_load_pct + 1.2 * max(0.0, m.cpu_temp_c - 30.0) + 0.5 * m.fan_pct
+                m.power_watts = (
+                    90.0 + 1.8 * m.cpu_load_pct + 1.2 * max(0.0, m.cpu_temp_c - 30.0) + 0.5 * m.fan_pct
+                )
                 if not m.hung:
                     m.cpu_load_pct = clamp(m.cpu_load_pct + random.uniform(-2.0, 2.0), 5.0, 95.0)
             else:
@@ -125,10 +128,14 @@ class Fleet:
                 m.power_watts = 8.0
             if m.power == PowerState.ON and not m.psu_ok[1] and not m.psu_ok[2]:
                 m.power = PowerState.OFF
+                # A machine with no power is off, not hung — reset() already treats
+                # every power transition this way, so tick() has to agree.
+                m.hung = False
                 self.log_sel(m.system_id, "Warning", "PSUFault", "Both PSUs lost input; system powered off")
             if m.cpu_temp_c >= 97.0 and not m.thermal_trip:
                 m.thermal_trip = True
                 m.power = PowerState.OFF
+                m.hung = False
                 self.log_sel(
                     m.system_id,
                     "Critical",
@@ -225,7 +232,7 @@ class Fleet:
             m.psu_ok = {1: True, 2: True}
             m.hung = False
 
-    def snapshot(self) -> dict:
+    def snapshot(self) -> dict[str, Any]:
         """Point-in-time fleet state for the API layer."""
         nodes = [
             {

@@ -6,11 +6,13 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
 
 from app.chaos import build_chaos_router
+from app.metrics import build_metrics_router
 from app.redfish import build_router as build_redfish_router
 from app.state import Fleet
 
@@ -52,9 +54,10 @@ def create_app(node_ids: list[str] | None = None, tick_interval_s: float = 1.0) 
 
     app.include_router(build_redfish_router(fleet))
     app.include_router(build_chaos_router(fleet))
+    app.include_router(build_metrics_router(fleet))
 
     @app.get("/")
-    def root() -> dict:
+    def root() -> dict[str, Any]:
         return {
             "service": "mock-bmc",
             "nodes": len(node_ids),
