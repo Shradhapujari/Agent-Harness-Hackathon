@@ -120,6 +120,41 @@ def test_clear_chaos_resets_offsets_psus_hang_and_keeps_sel():
         assert len(m.sel) == sel_counts[m.system_id]
 
 
+@pytest.mark.parametrize("terminal_fault", ["thermal", "psu"])
+def test_clear_chaos_restores_chaos_terminated_machine(terminal_fault: str):
+    fleet = _fleet_one()
+    m = fleet.machines["T1"]
+    if terminal_fault == "thermal":
+        m.cpu_temp_c = 98.0
+        fleet.tick(0.0)
+    else:
+        fleet.psu_fail("T1", 1)
+        fleet.psu_fail("T1", 2)
+        fleet.tick()
+    sel_count = len(m.sel)
+
+    fleet.clear_chaos()
+
+    assert m.power == PowerState.ON
+    assert m.thermal_trip is False
+    assert m.psu_ok == {1: True, 2: True}
+    assert len(m.sel) == sel_count
+
+
+def test_clear_chaos_preserves_administrative_power_off():
+    fleet = _fleet_one()
+    m = fleet.machines["T1"]
+    fleet.reset("T1", "ForceOff")
+    fleet.psu_fail("T1", 1)
+    fleet.psu_fail("T1", 2)
+    fleet.tick()
+
+    fleet.clear_chaos()
+
+    assert m.power == PowerState.OFF
+    assert m.psu_ok == {1: True, 2: True}
+
+
 def test_sel_ids_increase_timestamps_iso_newest_last():
     fleet = _fleet_one()
     e1 = fleet.log_sel("T1", "OK", "UserNote", "first")
@@ -133,6 +168,18 @@ def test_sel_ids_increase_timestamps_iso_newest_last():
         parsed = datetime.fromisoformat(e.timestamp)
         assert parsed.tzinfo is not None
     assert fleet.machines["T1"].sel[-1].message == "third"
+
+
+def test_sel_wraps_at_1000_records_and_keeps_newest_entries():
+    fleet = _fleet_one()
+    for number in range(1002):
+        fleet.log_sel("T1", "OK", "UserNote", str(number))
+
+    entries = fleet.machines["T1"].sel
+    assert len(entries) == 1000
+    assert entries[0].message == "2"
+    assert entries[-1].message == "1001"
+    assert [entry.id for entry in entries] == list(range(3, 1003))
 
 
 def test_hung_machine_load_frozen_across_ticks():

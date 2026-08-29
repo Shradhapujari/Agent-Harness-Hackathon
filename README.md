@@ -151,7 +151,8 @@ npm run register
 ```
 
 Set `TRUEFORGE_BASE_URL` to use a different local TrueForge URL. Keep
-`HUSH_MODEL=openai/gpt-5.6-luna`; other models are unsupported. Registration is
+`HUSH_MODEL=openai/gpt-5.6-luna`; other models are unsupported. The registration
+command loads these values from the root `.env` when it exists. Registration is
 idempotent and safe to rerun after changing the agent manifest or system prompt.
 
 ## Working agreements

@@ -1,4 +1,5 @@
 """Chaos injector API tests via TestClient."""
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -37,6 +38,23 @@ def test_thermal_spike_unknown_system_404():
         json={"system": "NOPE", "delta_c": 25, "duration_s": 120},
     )
     assert r.status_code == 404
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize(
+    ("path", "payload", "field"),
+    [
+        ("/chaos/thermal-spike", {"system": "T1", "delta_c": 10, "duration_s": 5}, "delta_c"),
+        ("/chaos/thermal-spike", {"system": "T1", "delta_c": 10, "duration_s": 5}, "duration_s"),
+        ("/chaos/crac-failure", {"delta_c": 10}, "delta_c"),
+    ],
+)
+def test_chaos_rejects_non_finite_floats(
+    path: str, payload: dict[str, object], field: str, value: str
+):
+    payload[field] = value
+    r = _client().post(path, json=payload)
+    assert r.status_code == 422
 
 
 def test_psu_fail_invalid_psu_numbers_400():
