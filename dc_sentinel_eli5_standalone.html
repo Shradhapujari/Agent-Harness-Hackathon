@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DC-Sentinel for Kids</title>
+<style>
+:root{
+  --bg:#fff8ec; --panel:#ffffff; --ink:#2b2b3a; --sub:#6b6b80;
+  --blue:#4d8dff; --green:#3ecf8e; --orange:#ffb648; --red:#ff6b6b; --purple:#9b7bff;
+  --line:#eee0c8;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1b1a22; --panel:#242231; --ink:#f3f0ff; --sub:#b7b2d0; --line:#3a3650;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1b1a22; --panel:#242231; --ink:#f3f0ff; --sub:#b7b2d0; --line:#3a3650;
+}
+*{box-sizing:border-box;}
+body{background:var(--bg); color:var(--ink); font-family:'Comic Sans MS','Segoe UI',system-ui,sans-serif; margin:0; padding:2.5rem 1.5rem 4rem;}
+.wrap{max-width:980px; margin:0 auto;}
+h1{font-size:2.6rem; text-align:center; margin:0 0 .2rem;}
+.sub{text-align:center; color:var(--sub); font-size:1.2rem; margin-bottom:2.5rem;}
+.storybar{display:flex; justify-content:center; gap:.6rem; flex-wrap:wrap; margin-bottom:3rem;}
+.storybar span{background:var(--panel); border:2px solid var(--line); border-radius:999px; padding:.5rem 1.1rem; font-size:1rem; font-weight:700;}
+
+.scene{background:var(--panel); border:3px solid var(--line); border-radius:28px; padding:2rem; margin-bottom:2.2rem; position:relative;}
+.scene h2{margin:0 0 1rem; font-size:1.7rem; display:flex; align-items:center; gap:.6rem;}
+.scene p{font-size:1.15rem; line-height:1.7; margin:0 0 1rem;}
+.badge{position:absolute; top:-18px; left:28px; background:var(--blue); color:#fff; font-weight:800; font-size:.95rem; padding:.35rem 1rem; border-radius:999px; box-shadow:0 3px 0 rgba(0,0,0,.15);}
+
+.row{display:flex; gap:1.2rem; flex-wrap:wrap; align-items:center; justify-content:center;}
+.icon-box{text-align:center; width:130px;}
+.icon-box .circle{width:96px; height:96px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.6rem; margin:0 auto .5rem; box-shadow:0 4px 0 rgba(0,0,0,.12);}
+.icon-box .label{font-size:.95rem; font-weight:700; color:var(--sub);}
+
+svg{display:block; margin:0 auto;}
+
+.flow{display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:.4rem; margin-top:1rem;}
+.fstep{background:var(--bg); border:2px solid var(--line); border-radius:14px; padding:.7rem 1rem; font-weight:700; font-size:1rem; text-align:center; max-width:150px;}
+.farrow{font-size:1.4rem; color:var(--sub);}
+
+.two-col{display:grid; grid-template-columns:1fr 1fr; gap:1.2rem;}
+@media (max-width:700px){.two-col{grid-template-columns:1fr;}}
+.green-card, .orange-card{border-radius:18px; padding:1.2rem; text-align:center; font-weight:800; font-size:1.15rem;}
+.green-card{background:#e3fbf0; color:#1c7a53; border:2px dashed var(--green);}
+.orange-card{background:#fff3e0; color:#a15c00; border:2px dashed var(--orange);}
+:root[data-theme="dark"] .green-card, :root:not([data-theme="light"]) .green-card{background:#123324; color:#7ee9bb;}
+:root[data-theme="dark"] .orange-card, :root:not([data-theme="light"]) .orange-card{background:#3a2b0f; color:#ffcf8a;}
+
+.trophy-row{display:grid; grid-template-columns:repeat(3,1fr); gap:1rem;}
+@media (max-width:700px){.trophy-row{grid-template-columns:1fr;}}
+.trophy{background:var(--bg); border:2px solid var(--line); border-radius:18px; padding:1.2rem; text-align:center;}
+.trophy .emoji{font-size:2.4rem;}
+.trophy h3{margin:.4rem 0 .3rem; font-size:1.1rem;}
+.trophy p{font-size:.95rem; color:var(--sub); margin:0;}
+
+footer{text-align:center; color:var(--sub); margin-top:2.5rem; font-size:1rem;}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <h1>🛰️ DC-Sentinel</h1>
+  <p class="sub">A robot detective for a giant computer building!</p>
+
+  <div class="storybar">
+    <span>😱 Uh oh!</span><span>🕵️ Robot investigates</span><span>🙋 Asks permission</span><span>💪 Fixes it</span><span>🎉 All better!</span>
+  </div>
+
+  <div class="scene">
+    <div class="badge">PART 1</div>
+    <h2>🏢 What is a data center?</h2>
+    <p>Imagine a HUGE room full of computer shelves called <strong>racks</strong>. These computers run apps for lots of people, like YouTube or games. They get hot, so big fans called <strong>CRAC units</strong> blow cold air on them, like an air conditioner for robots.</p>
+    <div class="row">
+      <div class="icon-box"><div class="circle" style="background:#eaf2ff;">🖥️</div><div class="label">Computer rack</div></div>
+      <div class="icon-box"><div class="circle" style="background:#eaffef;">❄️</div><div class="label">Cooling fan</div></div>
+      <div class="icon-box"><div class="circle" style="background:#fff0e6;">🔌</div><div class="label">Power</div></div>
+      <div class="icon-box"><div class="circle" style="background:#f3eaff;">📦</div><div class="label">Apps running</div></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <div class="badge" style="background:var(--red);">PART 2</div>
+    <h2>😱 The problem: 40 alarms, but only ONE boo-boo</h2>
+    <p>When ONE fan breaks, it gets hot. Hot makes computers panic. Then EVERYTHING starts beeping at once — like when one kid falls down and 40 people scream! A tired human has to figure out it's really just <strong>ONE</strong> problem.</p>
+    <svg width="640" height="160" viewBox="0 0 640 160">
+      <circle cx="60" cy="80" r="26" fill="#ff6b6b"/><text x="60" y="87" font-size="26" text-anchor="middle">🌡️</text>
+      <text x="60" y="140" font-size="13" text-anchor="middle" fill="var(--sub)">Fan breaks</text>
+      <path d="M95 80 H150" stroke="var(--sub)" stroke-width="3" marker-end="url(#arrow)"/>
+      <g id="alarms">
+        <circle cx="220" cy="30" r="16" fill="#ffb648"/><text x="220" y="36" font-size="16" text-anchor="middle">🔔</text>
+        <circle cx="270" cy="60" r="16" fill="#ffb648"/><text x="270" y="66" font-size="16" text-anchor="middle">🔔</text>
+        <circle cx="200" cy="90" r="16" fill="#ffb648"/><text x="200" y="96" font-size="16" text-anchor="middle">🔔</text>
+        <circle cx="260" cy="120" r="16" fill="#ffb648"/><text x="260" y="126" font-size="16" text-anchor="middle">🔔</text>
+        <circle cx="320" cy="40" r="16" fill="#ffb648"/><text x="320" y="46" font-size="16" text-anchor="middle">🔔</text>
+        <circle cx="330" cy="100" r="16" fill="#ffb648"/><text x="330" y="106" font-size="16" text-anchor="middle">🔔</text>
+        <circle cx="380" cy="70" r="16" fill="#ffb648"/><text x="380" y="76" font-size="16" text-anchor="middle">🔔</text>
+      </g>
+      <text x="300" y="150" font-size="14" text-anchor="middle" fill="var(--sub)" font-weight="700">40 alarms screaming!</text>
+      <path d="M410 75 H470" stroke="var(--sub)" stroke-width="3" marker-end="url(#arrow)"/>
+      <circle cx="530" cy="80" r="30" fill="#4d8dff"/><text x="530" y="90" font-size="30" text-anchor="middle">🤖</text>
+      <text x="530" y="135" font-size="13" text-anchor="middle" fill="var(--sub)" font-weight="700">DC-Sentinel says:</text>
+      <text x="530" y="152" font-size="12" text-anchor="middle" fill="var(--sub)">"It's just ONE fan!"</text>
+      <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--sub)"/></marker></defs>
+    </svg>
+  </div>
+
+  <div class="scene">
+    <div class="badge" style="background:var(--purple);">PART 3</div>
+    <h2>🕵️ Our robot detective's 3 helper friends</h2>
+    <p>DC-Sentinel doesn't work alone. It calls three little helper-bots who each look for clues:</p>
+    <div class="row">
+      <div class="icon-box"><div class="circle" style="background:#eaf2ff;">🧩</div><div class="label">Correlator<br>groups the clues</div></div>
+      <div class="icon-box"><div class="circle" style="background:#eaffef;">🏷️</div><div class="label">Classifier<br>sorts what matters</div></div>
+      <div class="icon-box"><div class="circle" style="background:#fff0e6;">🔍</div><div class="label">Enricher<br>checks the real thermometer</div></div>
+    </div>
+    <p style="text-align:center; margin-top:1rem;">Together they find: <strong>"It's rack R4 — the fan died, and it's getting hot!"</strong></p>
+  </div>
+
+  <div class="scene">
+    <div class="badge" style="background:var(--orange);">PART 4</div>
+    <h2>🙋 The most important rule: ASK FIRST!</h2>
+    <p>The robot can do SAFE things by itself. But for big scary things — like turning a computer OFF — it must ask a human "is this okay?" first. Just like you ask a grown-up before doing something big!</p>
+    <div class="two-col">
+      <div class="green-card">✅ Safe stuff — robot just does it<br><span style="font-weight:400; font-size:.95rem;">Move apps to a cooler rack</span></div>
+      <div class="orange-card">🙋 Big stuff — robot asks a human first<br><span style="font-weight:400; font-size:.95rem;">Turn off / power-cycle a computer</span></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <div class="badge" style="background:var(--green);">PART 5</div>
+    <h2>🎬 The whole story, start to finish</h2>
+    <div class="flow">
+      <div class="fstep">🔥 Fan breaks</div><div class="farrow">→</div>
+      <div class="fstep">🔔 40 alarms ring</div><div class="farrow">→</div>
+      <div class="fstep">🤖 Robot looks</div><div class="farrow">→</div>
+      <div class="fstep">🧩 Finds 1 cause</div><div class="farrow">→</div>
+      <div class="fstep">🙋 Asks human</div><div class="farrow">→</div>
+      <div class="fstep">💪 Fixes it</div><div class="farrow">→</div>
+      <div class="fstep">🎉 All better + writes a report</div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <div class="badge" style="background:var(--blue);">PART 6</div>
+    <h2>🧸 How we practice (no real building!)</h2>
+    <p>We don't get to touch a REAL data center, so we build a pretend one on our own computer with toy versions that act just like the real thing — like a dollhouse that really works!</p>
+    <div class="row">
+      <div class="icon-box"><div class="circle" style="background:#eaf2ff;">🐳</div><div class="label">Pretend computer racks</div></div>
+      <div class="icon-box"><div class="circle" style="background:#fff0e6;">🌡️</div><div class="label">Pretend thermometer</div></div>
+      <div class="icon-box"><div class="circle" style="background:#f3eaff;">📋</div><div class="label">Pretend building map</div></div>
+      <div class="icon-box"><div class="circle" style="background:#ffecec;">💥</div><div class="label">"Break it on purpose" button</div></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <div class="badge" style="background:var(--purple);">PART 7</div>
+    <h2>🏆 Why judges will love it</h2>
+    <div class="trophy-row">
+      <div class="trophy"><div class="emoji">🧠</div><h3>Uses the robot toolkit fully</h3><p>Talks to 5 real tools, uses helper-bots, and always asks before big actions.</p></div>
+      <div class="trophy"><div class="emoji">🧹</div><h3>Neat, tested code</h3><p>Built carefully with tests and reviews, like a well-organized backpack.</p></div>
+      <div class="trophy"><div class="emoji">📖</div><h3>A great story to tell</h3><p>"40 alarms → 1 answer → 0 humans woken up." Easy to remember, fun to say!</p></div>
+    </div>
+  </div>
+
+  <footer>Made simple for show &amp; tell 🎈 — DC-Sentinel, the Agent Harness Hackathon project</footer>
+</div>
+</body>
+</html>

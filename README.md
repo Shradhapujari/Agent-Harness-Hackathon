@@ -149,6 +149,8 @@ idempotent and safe to rerun after changing the agent manifest or system prompt.
 - [Execution graph and MCP contracts](specs/graph.md)
 - [Implementation roadmap](specs/roadmap.md)
 - [Mock BMC guide](mock-bmc/README.md)
+- [DC-Sentinel ELI5](dc_sentinel_eli5_standalone.html) — kid-friendly, standalone
+  walkthrough of the project
 
 ## Qodo Code Review Evidence
 
