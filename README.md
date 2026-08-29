@@ -50,15 +50,15 @@ See [the locked technology choices](specs/tech-stack.md) and
 
 ## Repository map
 
-| Path | Purpose |
-|---|---|
-| `specs/mission.md` | Product scope, scenarios, and success criteria |
-| `specs/tech-stack.md` | Locked tools, versions, ports, and environment variables |
-| `specs/graph.md` | Execution graph, state, safety policy, and MCP contracts |
-| `specs/roadmap.md` | Build sequence, ownership, and definitions of done |
-| `hush/` | TrueForge controller (Person B; B0 foundation currently present) |
-| `mock-bmc/` | FastAPI mock BMC with a Redfish-compatible API |
-| `.env.example` | Safe local configuration template; contains no credentials |
+| Path                  | Purpose                                                       |
+| --------------------- | ------------------------------------------------------------- |
+| `specs/mission.md`    | Product scope, scenarios, and success criteria                |
+| `specs/tech-stack.md` | Locked tools, versions, ports, and environment variables      |
+| `specs/graph.md`      | Execution graph, state, safety policy, and MCP contracts      |
+| `specs/roadmap.md`    | Build sequence, ownership, and definitions of done            |
+| `hush/`               | TrueForge controller, graph runner, prompts, and registration |
+| `mock-bmc/`           | FastAPI mock BMC with a Redfish-compatible API                |
+| `.env.example`        | Safe local configuration template; contains no credentials    |
 
 Folders described in the roadmap, including `mcp/`, `chaos/`, and `infra/`,
 will appear as their phases land. Do not assume roadmap examples are already
@@ -66,10 +66,9 @@ implemented.
 
 ## Current status
 
-The repository is in the B0 foundation phase. The TypeScript controller
-scaffold, tests, CI/Qodo configuration, specifications, and mock BMC are
-present. The complete one-command incident demo is not yet available. Follow
-the ordered definitions of done in `specs/roadmap.md`; B1 follows B0, then B2.
+Person B phases B0 through B2 and Person A phase A2 are present. The graph
+runner and TrueForge adapter are implemented, but the complete one-command
+incident demo still depends on later roadmap phases and integration fixtures.
 
 ## Get started as a contributor
 
@@ -105,9 +104,9 @@ npm run lint
 The mock BMC has its own setup and API examples in
 [`mock-bmc/README.md`](mock-bmc/README.md).
 
-## TrueForge setup (B2)
+## TrueForge setup
 
-When the B2 adapter lands, start TrueForge locally:
+Start TrueForge locally:
 
 ```bash
 npx @truefoundry/trueforge@latest
@@ -115,8 +114,22 @@ npx @truefoundry/trueforge@latest
 
 Open `http://localhost:8790`, add an OpenAI API key under **Settings →
 Models**, and select `openai/gpt-5.6-luna`. Do not add a model fallback. Daytona
-is the planned sandbox provider. Registration and incident commands documented
-in the roadmap are future-phase commands until their implementation lands.
+is the planned sandbox provider.
+
+In **Settings → Skills**, choose **Import from GitHub** and import this public
+repository with the path `skills/hush-triage`. This one-time OAuth-backed step
+is intentionally not automated. With the five local MCP servers running,
+register or update their connectors and the `hush-operator` agent:
+
+```bash
+cd hush
+npm ci
+npm run register
+```
+
+Set `TRUEFORGE_BASE_URL` to use a different local TrueForge URL. Keep
+`HUSH_MODEL=openai/gpt-5.6-luna`; other models are unsupported. Registration is
+idempotent and safe to rerun after changing the agent manifest or system prompt.
 
 ## Working agreements
 
