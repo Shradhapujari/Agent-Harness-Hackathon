@@ -25,6 +25,10 @@ down:
 # so the demo workloads can never be applied to a real cluster that happens to
 # be the current context.
 kind-up:
+	# Checked before the cluster is built: a config this cannot count would
+	# otherwise abort after ~50s, leaving an orphaned cluster and no workloads.
+	@test "$(KIND_NODES)" -ge 1 2>/dev/null || \
+	  { echo "KIND_NODES=$(KIND_NODES): no roles parsed from infra/kind/cluster.yaml" >&2; exit 1; }
 	kind create cluster --config infra/kind/cluster.yaml
 	# Workers register after the control-plane reports Ready, and `kubectl wait
 	# --all` only selects the nodes that exist when it starts — a worker still
@@ -32,8 +36,6 @@ kind-up:
 	# the spread constraint is trivially satisfied, and all nine pods land on the
 	# control-plane. So: wait for all $(KIND_NODES) node objects to appear first,
 	# and only then for them to go Ready.
-	@test "$(KIND_NODES)" -ge 1 2>/dev/null || \
-	  { echo "KIND_NODES=$(KIND_NODES): no roles parsed from infra/kind/cluster.yaml" >&2; exit 1; }
 	@for i in $$(seq 1 60); do \
 	  n=$$(kubectl --context $(KIND_CONTEXT) get nodes --no-headers 2>/dev/null | wc -l | tr -d ' '); \
 	  if [ "$$n" -ge "$(KIND_NODES)" ]; then break; fi; \
