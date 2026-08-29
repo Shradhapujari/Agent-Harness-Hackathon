@@ -97,6 +97,12 @@ def test_a_scenario_clears_the_silence_the_last_clear_left(monkeypatch: pytest.M
     assert am.expired_authors == [scenarios.SILENCE_AUTHOR, scenarios.SILENCE_AUTHOR]
 
 
+def test_hang_refuses_a_node_the_cluster_does_not_have() -> None:
+    """An unknown node cannot be checked against a machine, so it cannot be trusted."""
+    with pytest.raises(ValueError, match="not a node in this cluster"):
+        scenarios.hang(FakeBmc(), FakeAm(), k8s_node="hush-worker9", system="R4-N04")
+
+
 def test_hang_refuses_a_node_and_machine_that_are_not_a_pair() -> None:
     with pytest.raises(ValueError, match="hush-worker runs on R4-N04"):
         scenarios.hang(FakeBmc(), FakeAm(), k8s_node="hush-worker", system="R4-N07")

@@ -169,6 +169,8 @@ def test_a_thaw_that_failed_is_reported_not_hidden(monkeypatch: pytest.MonkeyPat
     )
     assert result["kind_node"] == "hush-worker"
     assert result["unpaused"] is False
+    assert result["ok"] is False
+    assert "still paused" in result["warning"]
 
 
 def test_a_failed_thaw_does_not_power_cycle_the_machine_again(

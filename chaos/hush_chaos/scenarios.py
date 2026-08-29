@@ -58,9 +58,11 @@ def hang(
     or the scenario would claim a NotReady node that is nothing to do with the
     machine the agent is about to be shown.
     """
-    mapped = cluster.node_map().get(k8s_node)
-    if mapped is not None and mapped != system:
-        raise ValueError(f"{k8s_node} runs on {mapped}, not {system}")
+    nodes = cluster.node_map()
+    if k8s_node not in nodes:
+        raise ValueError(f"{k8s_node} is not a node in this cluster: {', '.join(sorted(nodes))}")
+    if nodes[k8s_node] != system:
+        raise ValueError(f"{k8s_node} runs on {nodes[k8s_node]}, not {system}")
     am.expire_silences(SILENCE_AUTHOR)
     bmc.post("/chaos/hang", {"system": system})
     if not cluster.pause(k8s_node):

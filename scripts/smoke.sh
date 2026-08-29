@@ -30,13 +30,21 @@ check_http() {  # name url [curl args...]
 }
 
 check_mcp() {  # name url
-  local name="$1" url="$2" tools
-  if tools="$(uv run python scripts/mcp_tools.py "$url" 2>/dev/null)"; then
-    printf '%-14s %-34s ok (%s tools)\n' "$name" "$url" "$(wc -w <<<"$tools" | tr -d ' ')"
-  else
+  local name="$1" url="$2" tools count
+  if ! tools="$(uv run python scripts/mcp_tools.py "$url" 2>/dev/null)"; then
     printf '%-14s %-34s FAIL (no tool list)\n' "$name" "$url"
     failures=$((failures + 1))
+    return
   fi
+  # A server that answers but exposes nothing is not a working server: the
+  # harness would register it and then find no tool to call.
+  count="$(wc -w <<<"$tools" | tr -d ' ')"
+  if [ "$count" -eq 0 ]; then
+    printf '%-14s %-34s FAIL (0 tools)\n' "$name" "$url"
+    failures=$((failures + 1))
+    return
+  fi
+  printf '%-14s %-34s ok (%s tools)\n' "$name" "$url" "$count"
 }
 
 check_http mock-bmc     "$BMC_URL/redfish/v1"   -u "$BMC_USER:$BMC_PASSWORD"

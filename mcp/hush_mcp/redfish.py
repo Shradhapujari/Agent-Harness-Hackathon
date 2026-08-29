@@ -216,8 +216,11 @@ def reset_system(
     node = _kind_node(system_id) if reset_type in POWER_ON_RESETS else None
     unpaused = _docker_unpause(node) if node is not None else None
     entries = _sel_entries(system_id, 1)
-    return {
-        "ok": True,
+    result: dict[str, Any] = {
+        # The power action succeeded, but a machine whose node stayed frozen has
+        # not come back — reporting that as a clean success would let the agent
+        # verify against a node that can never report Ready.
+        "ok": unpaused is not False,
         "system_id": system_id,
         "reset_type": reset_type,
         "reason": reason,
@@ -225,3 +228,6 @@ def reset_system(
         "kind_node": node,
         "unpaused": unpaused,
     }
+    if unpaused is False:
+        result["warning"] = f"powered {reset_type} but {node} is still paused; the node stays NotReady"
+    return result

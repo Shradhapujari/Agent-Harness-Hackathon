@@ -31,9 +31,18 @@ done
 
 # A pid file can go missing — a second `make down`, a cleaned runs/ — while the
 # server is still holding its port, which would make the next `make up` skip it
-# and then fail its own readiness check.
+# and then fail its own readiness check. Only ever kill our own servers: these
+# are ordinary ports and something else on this laptop may be using one.
 for port in $PORTS; do
   for pid in $(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null); do
-    kill "$pid" 2>/dev/null && echo "  stopped a server still holding $port (pid $pid)"
+    command_line="$(ps -o command= -p "$pid" 2>/dev/null)"
+    case "$command_line" in
+      *hush-mcp*)
+        kill "$pid" 2>/dev/null && echo "  stopped a server still holding $port (pid $pid)"
+        ;;
+      *)
+        echo "  port $port is held by something that is not a Hush server (pid $pid); left alone" >&2
+        ;;
+    esac
   done
 done

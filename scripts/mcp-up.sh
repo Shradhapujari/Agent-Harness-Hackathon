@@ -11,6 +11,13 @@ mkdir -p runs
 
 SERVERS=(alertmanager:9101 redfish:9102 kubernetes:9103 prometheus:9104 netbox:9105)
 
+# Every decision below is "is this port already served?". Without lsof the
+# answer is always no, and a second copy of each server would be started.
+if ! command -v lsof >/dev/null 2>&1; then
+  echo "lsof is required to tell which servers are already running" >&2
+  exit 1
+fi
+
 listening() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
 for entry in "${SERVERS[@]}"; do
