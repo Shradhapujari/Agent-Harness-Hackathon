@@ -5,7 +5,7 @@ export const Alert = z.object({
   name: z.string(),
   severity: z.enum(["critical", "warning", "info"]),
   labels: z.record(z.string()),
-  startsAt: z.string(),
+  startsAt: z.string().datetime(),
   status: z.enum(["firing", "resolved"])
 });
 
@@ -52,14 +52,16 @@ export const Action = z.object({
     .enum(["proposed", "approved", "denied", "executed", "failed", "skipped"])
     .default("proposed"),
   decidedBy: z.string().optional(),
-  decidedAt: z.string().optional(),
+  decidedAt: z.string().datetime().optional(),
   result: z.unknown().optional()
 });
 
 export const RunState = z.object({
   graphId: z.literal("hush-incident"),
-  runId: z.string(),
+  runId: z.string().regex(/^inc-\d{8}-[0-9a-fA-F]{4}$/),
+  runStartedAt: z.string().datetime().optional(),
   sessionId: z.string().optional(),
+  pendingActionId: z.string().optional(),
   scenarioHint: z.string().optional(),
   node: z.enum([
     "N0",
@@ -86,7 +88,7 @@ export const RunState = z.object({
   }),
   timeline: z.array(
     z.object({
-      ts: z.string(),
+      ts: z.string().datetime(),
       nodeId: z.string(),
       event: z.string(),
       detail: z.unknown().optional()

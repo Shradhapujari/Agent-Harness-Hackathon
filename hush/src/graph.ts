@@ -71,8 +71,12 @@ export async function run(
   context: Ctx,
   save: (state: RunState) => Promise<void>
 ): Promise<RunState> {
-  let state = initial;
-  const started = context.clock().getTime();
+  const now = context.clock();
+  let state: RunState = {
+    ...initial,
+    runStartedAt: initial.runStartedAt ?? now.toISOString()
+  };
+  const started = Date.parse(state.runStartedAt!);
 
   while (state.node !== "DONE") {
     if (

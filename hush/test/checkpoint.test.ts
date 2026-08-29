@@ -24,4 +24,9 @@ describe("checkpoint", () => {
       )
     ).toEqual(current);
   });
+
+  it("rejects run ids that could escape the checkpoint directory", () => {
+    expect(() => checkpointPath("../outside")).toThrow("invalid run id");
+    expect(() => checkpointPath("inc-test")).toThrow("invalid run id");
+  });
 });

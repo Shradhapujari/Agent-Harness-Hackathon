@@ -5,6 +5,7 @@ export type LogSink = (line: string) => void;
 export function createLogger(
   graphId: string,
   runId: string,
+  sessionId: string | undefined,
   sink: LogSink = console.log
 ): (nodeId: NodeId, event: string, detail?: unknown) => void {
   return (nodeId, event, detail) => {
@@ -13,6 +14,7 @@ export function createLogger(
         graph_id: graphId,
         run_id: runId,
         node_id: nodeId,
+        session_id: sessionId ?? null,
         event,
         ...(detail === undefined ? {} : { detail })
       })

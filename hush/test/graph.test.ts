@@ -28,19 +28,19 @@ describe("merge", () => {
     const initial = state({
       evidence: [evidence("redfish")],
       actions: [action()],
-      timeline: [{ ts: "one", nodeId: "N0", event: "old" }]
+      timeline: [{ ts: "2026-08-29T12:00:00.000Z", nodeId: "N0", event: "old" }]
     });
     const result = merge(initial, {
-      runId: "inc-new",
+      runId: "inc-20260829-1234",
       evidence: [
         { ...evidence("redfish"), summary: "new" },
         evidence("netbox")
       ],
       actions: [{ ...action(), status: "executed" }],
-      timeline: [{ ts: "two", nodeId: "N1", event: "new" }]
+      timeline: [{ ts: "2026-08-29T12:00:01.000Z", nodeId: "N1", event: "new" }]
     });
 
-    expect(result.runId).toBe("inc-new");
+    expect(result.runId).toBe("inc-20260829-1234");
     expect(result.evidence.map((item) => item.summary)).toEqual([
       "new",
       "netbox evidence"
@@ -119,5 +119,33 @@ describe("run", () => {
       nodeId: "N0",
       event: "run_timeout"
     });
+  });
+
+  it("preserves the original timeout deadline after resume", async () => {
+    const visits: string[] = [];
+    const graph = {
+      nodes: new Proxy({} as Graph["nodes"], {
+        get: (_target, node: string) => async () => {
+          visits.push(node);
+          return {};
+        }
+      }),
+      edges: new Proxy({} as Graph["edges"], {
+        get: (_target, node: string) => () => (node === "N9" ? "N10" : "DONE")
+      })
+    };
+    const started = new Date("2026-08-29T12:00:00.000Z");
+    const resumed = new Date(
+      started.getTime() + LIMITS.RUN_TIMEOUT_S * 1000 + 1
+    );
+
+    await run(
+      graph,
+      state({ node: "N3", runStartedAt: started.toISOString() }),
+      context([resumed]),
+      vi.fn()
+    );
+
+    expect(visits).toEqual(["N9", "N10"]);
   });
 });

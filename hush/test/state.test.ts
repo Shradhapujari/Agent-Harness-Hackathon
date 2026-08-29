@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { Action, Evidence, RunState } from "../src/state.js";
-import { action, evidence, state } from "./helpers.js";
+import { Action, Alert, Evidence, RunState } from "../src/state.js";
+import { action, alert, evidence, state } from "./helpers.js";
 
 describe("state schemas", () => {
   it("applies evidence and action defaults", () => {
@@ -15,6 +15,8 @@ describe("state schemas", () => {
 
   it("rejects invalid checkpoint state", () => {
     expect(() => RunState.parse({ ...state(), graphId: "other" })).toThrow();
+    expect(() => RunState.parse({ ...state(), runId: "../outside" })).toThrow();
     expect(() => Action.parse({ ...action(), kind: "read" })).toThrow();
+    expect(() => Alert.parse({ ...alert(), startsAt: "later" })).toThrow();
   });
 });

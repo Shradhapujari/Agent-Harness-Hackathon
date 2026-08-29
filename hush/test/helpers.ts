@@ -43,7 +43,7 @@ export const action = (overrides: Partial<Action> = {}): Action => ({
   kind: "safe",
   tool: "kubernetes.drain_node",
   args: { name: "R4-N04" },
-  idempotencyKey: "inc-test:kubernetes.drain_node:1",
+  idempotencyKey: "inc-20260829-abcd:kubernetes.drain_node:1",
   reason: "Move workloads from the failed host.",
   evidence: ["ev-kubernetes"],
   status: "proposed",
@@ -52,7 +52,7 @@ export const action = (overrides: Partial<Action> = {}): Action => ({
 
 export const state = (overrides: Partial<RunState> = {}): RunState => ({
   graphId: "hush-incident",
-  runId: "inc-test",
+  runId: "inc-20260829-abcd",
   node: "N0",
   alerts: [],
   evidence: [],

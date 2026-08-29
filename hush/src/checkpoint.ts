@@ -1,10 +1,19 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 
 import { RunState, type RunState as RunStateType } from "./state.js";
 
 export function checkpointPath(runId: string, runsDirectory = "runs"): string {
-  return join(runsDirectory, runId, "state.json");
+  if (!/^inc-\d{8}-[0-9a-fA-F]{4}$/.test(runId)) {
+    throw new Error(`invalid run id: ${runId}`);
+  }
+  const root = resolve(runsDirectory);
+  const path = resolve(root, runId, "state.json");
+  const fromRoot = relative(root, path);
+  if (fromRoot.startsWith("..") || fromRoot === "") {
+    throw new Error("checkpoint path escapes runs directory");
+  }
+  return path;
 }
 
 export async function saveCheckpoint(
