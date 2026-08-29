@@ -36,5 +36,12 @@ known-first-party = ["app", "hush_mcp", "hush_chaos"]
 strict = true
 python_version = "3.12"
 
+# The official Kubernetes client generates its models at build time and ships no
+# py.typed marker. Trust it at the import boundary; everything we write on top of
+# it stays strict.
+[[tool.mypy.overrides]]
+module = ["kubernetes.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
