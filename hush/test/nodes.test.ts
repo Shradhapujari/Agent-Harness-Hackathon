@@ -88,6 +88,23 @@ describe("N0 watch", () => {
 });
 
 describe("N1 triage", () => {
+  it("inserts alert template values containing dollar patterns verbatim", async () => {
+    const harness = {
+      openSession: vi.fn().mockResolvedValue("session-1"),
+      turn: vi.fn().mockResolvedValue({ text: fenced(incident), events: [] })
+    };
+    const dollarName = "$&-$`-$'";
+
+    await triage(
+      state({ alerts: [{ ...alert(), name: dollarName }] }),
+      context(harness)
+    );
+
+    expect(harness.turn.mock.calls[0]?.[1]).toContain(
+      `\"n\":${JSON.stringify(dollarName)}`
+    );
+  });
+
   it("opens a session and validates a non-empty primary set", async () => {
     const harness = {
       openSession: vi.fn().mockResolvedValue("session-1"),

@@ -19,7 +19,7 @@ export async function render(
 ): Promise<string> {
   let template = await load(name);
   for (const [key, value] of Object.entries(values))
-    template = template.replaceAll(`{{${key}}}`, value);
+    template = template.replaceAll(`{{${key}}}`, () => value);
   return template;
 }
 
