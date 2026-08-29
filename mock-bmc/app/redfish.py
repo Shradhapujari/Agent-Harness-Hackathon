@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from app.state import Fleet, Machine, SelEntry
+from app.state import MAX_SEL_RECORDS, Fleet, Machine, SelEntry
 
 # Redfish bodies are free-form JSON; handlers that can 404 also return a JSONResponse.
 JsonDict = dict[str, Any]
@@ -194,7 +194,7 @@ def _log_service(sid: str) -> JsonDict:
         "Id": "SEL",
         "Name": "System Event Log",
         "OverWritePolicy": "WrapsWhenFull",
-        "MaxNumberOfRecords": 1000,
+        "MaxNumberOfRecords": MAX_SEL_RECORDS,
         "Entries": {
             "@odata.id": f"/redfish/v1/Systems/{sid}/LogServices/SEL/Entries"
         },

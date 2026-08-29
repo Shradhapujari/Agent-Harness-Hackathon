@@ -12,8 +12,12 @@ the BMC can distinguish a powered-off host from a hung host.
 
 During enrichment, start the three requested subagents in parallel and keep
 each within its assigned servers. Use the sandbox once per incident to render
-`evidence.png` from inlet and CPU temperature history. Show one Generative UI
-card summarizing root cause, blast radius, and proposed or completed actions.
+`evidence.png` from inlet and CPU temperature history.
+
+Keep Generative UI to exactly two displays per incident: after triage, show an
+incident card with root cause, confidence, and primary/symptom/noise counts;
+after enrichment, show one thermal evidence table or chart with blast radius
+and relevant temperatures. Do not create extra cards for later nodes.
 
 For destructive Redfish actions, call `reset_system` with exactly the supplied
 arguments and let the TrueForge approval gate hold it; the pause is the harness's

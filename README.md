@@ -12,6 +12,8 @@ Hush is a hackathon project built on the TrueForge agent harness. The data
 center hardware is simulated; the APIs, alert flow, Kubernetes operations,
 approval gate, and audit trail are real.
 
+![Hush incident execution graph](docs/architecture.svg)
+
 ## What happens during an incident
 
 1. Alertmanager supplies the live alert stream.
@@ -27,6 +29,20 @@ approval gate, and audit trail are real.
 
 The project supports two repeatable demo scenarios: a rack cooling (CRAC)
 failure cascade and a hung Kubernetes node.
+
+## Graph engineering
+
+| Stage         | Kind                            | Responsibility                                            | Guardrail                        |
+| ------------- | ------------------------------- | --------------------------------------------------------- | -------------------------------- |
+| N0 watch      | deterministic                   | Detect an alert storm                                     | Fixed count and time window      |
+| N1 triage     | agentic                         | Correlate and classify one incident                       | Typed incident schema            |
+| N2 enrich     | agentic + subagents             | Join Redfish, NetBox, Kubernetes, and Prometheus evidence | Three isolated subagents         |
+| N3 plan       | agentic                         | Rank evidence-linked actions                              | Fixed tool registry              |
+| N4–N7 execute | deterministic + agentic + human | Route safe actions and pause destructive actions          | Code-owned policy and approval   |
+| N8–N10 close  | deterministic + agentic         | Verify, escalate if needed, and report                    | Fresh probes and bounded retries |
+
+The complete node and edge contracts are in
+[the execution graph specification](specs/graph.md).
 
 ## Safety model
 
@@ -50,15 +66,17 @@ See [the locked technology choices](specs/tech-stack.md) and
 
 ## Repository map
 
-| Path                  | Purpose                                                       |
-| --------------------- | ------------------------------------------------------------- |
-| `specs/mission.md`    | Product scope, scenarios, and success criteria                |
-| `specs/tech-stack.md` | Locked tools, versions, ports, and environment variables      |
-| `specs/graph.md`      | Execution graph, state, safety policy, and MCP contracts      |
-| `specs/roadmap.md`    | Build sequence, ownership, and definitions of done            |
-| `hush/`               | TrueForge controller, graph runner, prompts, and registration |
-| `mock-bmc/`           | FastAPI mock BMC with a Redfish-compatible API                |
-| `.env.example`        | Safe local configuration template; contains no credentials    |
+| Path                    | Purpose                                                       |
+| ----------------------- | ------------------------------------------------------------- |
+| `specs/mission.md`      | Product scope, scenarios, and success criteria                |
+| `specs/tech-stack.md`   | Locked tools, versions, ports, and environment variables      |
+| `specs/graph.md`        | Execution graph, state, safety policy, and MCP contracts      |
+| `specs/roadmap.md`      | Build sequence, ownership, and definitions of done            |
+| `hush/`                 | TrueForge controller, graph runner, prompts, and registration |
+| `skills/hush-triage/`   | Importable data-center triage runbook                         |
+| `docs/architecture.svg` | Incident graph used in this guide                             |
+| `mock-bmc/`             | FastAPI mock BMC with a Redfish-compatible API                |
+| `.env.example`          | Safe local configuration template; contains no credentials    |
 
 Folders described in the roadmap, including `mcp/`, `chaos/`, and `infra/`,
 will appear as their phases land. Do not assume roadmap examples are already
@@ -66,9 +84,10 @@ implemented.
 
 ## Current status
 
-Person B phases B0 through B2 and Person A phase A2 are present. The graph
-runner and TrueForge adapter are implemented, but the complete one-command
-incident demo still depends on later roadmap phases and integration fixtures.
+Person B phases B0 through B4 are present on `main`: the graph runner,
+TrueForge adapter, triage, parallel enrichment, planning, approval-gated
+execution, verification, and reporting are implemented. B5 adds the operator
+runbook, Generative UI guidance, and clean-clone documentation.
 
 ## Get started as a contributor
 
@@ -101,6 +120,10 @@ npm run build
 npm run lint
 ```
 
+CI runs the same TypeScript checks, the Python test suite, and gitleaks on each
+pull request. From the repository root, `make test` runs the Python lint,
+type-check, and test suite with `uv`.
+
 The mock BMC has its own setup and API examples in
 [`mock-bmc/README.md`](mock-bmc/README.md).
 
@@ -129,7 +152,8 @@ npm run register
 ```
 
 Set `TRUEFORGE_BASE_URL` to use a different local TrueForge URL. Keep
-`HUSH_MODEL=openai/gpt-5-6-luna`; other models are unsupported. Registration is
+`HUSH_MODEL=openai/gpt-5-6-luna`; other models are unsupported. The registration
+command loads these values from the root `.env` when it exists. Registration is
 idempotent and safe to rerun after changing the agent manifest or system prompt.
 
 ## Working agreements
@@ -155,5 +179,19 @@ idempotent and safe to rerun after changing the agent manifest or system prompt.
 
 ## Qodo Code Review Evidence
 
-Qodo review is required for every substantive pull request. Add links to
-representative merged reviews here as those PRs land.
+Qodo review is required for every substantive pull request.
+
+- [PR #7 — TrueForge adapter and registration](https://github.com/Shradhapujari/Agent-Harness-Hackathon/pull/7): Qodo review feedback was incorporated before merge; the final change keeps harness I/O behind a typed adapter and registration idempotent.
+- [PR #14 — triage, enrichment, and planning nodes](https://github.com/Shradhapujari/Agent-Harness-Hackathon/pull/14): Qodo surfaced bounded-execution and stale-plan risks; follow-up commits added node timeouts, stricter plan replacement, and regression tests.
+
+## Limits, team, and license
+
+Hush intentionally supports one rack, two deterministic scenarios, and one
+model. The BMC is simulated, NetBox writes are forbidden, and Kubernetes
+changes are limited to cordon, drain, uncordon, and rescheduling. See
+[the full non-goals](specs/mission.md#6-non-goals-say-no).
+
+The two-person project is split at the MCP boundary: Person A owns the
+simulated data center and tool servers; Person B owns the Hush controller,
+TrueForge integration, CI, and demo materials. Hush is licensed under the
+[MIT License](LICENSE).

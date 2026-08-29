@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+MAX_SEL_RECORDS = 1000
+
 
 def clamp(v: float, lo: float, hi: float) -> float:
     """Clamp v into [lo, hi]."""
@@ -56,6 +58,7 @@ class Machine:
     fan_pct: float = 20.0
     psu_ok: dict[int, bool] = field(default_factory=lambda: {1: True, 2: True})
     thermal_trip: bool = False
+    chaos_powered_off: bool = False
     sel: list[SelEntry] = field(default_factory=list)
     thermal_offset_c: float = 0.0
     thermal_until: float = 0.0
@@ -100,7 +103,10 @@ class Fleet:
             code=code,
             message=message,
         )
-        self._machine(system_id).sel.append(entry)
+        entries = self._machine(system_id).sel
+        entries.append(entry)
+        if len(entries) > MAX_SEL_RECORDS:
+            del entries[:-MAX_SEL_RECORDS]
         return entry
 
     def tick(self, dt_s: float = 1.0, now: float | None = None) -> None:
@@ -127,6 +133,7 @@ class Fleet:
                 m.fan_pct = 0.0
                 m.power_watts = 8.0
             if m.power == PowerState.ON and not m.psu_ok[1] and not m.psu_ok[2]:
+                m.chaos_powered_off = True
                 m.power = PowerState.OFF
                 # A machine with no power is off, not hung — reset() already treats
                 # every power transition this way, so tick() has to agree.
@@ -134,6 +141,7 @@ class Fleet:
                 self.log_sel(m.system_id, "Warning", "PSUFault", "Both PSUs lost input; system powered off")
             if m.cpu_temp_c >= 97.0 and not m.thermal_trip:
                 m.thermal_trip = True
+                m.chaos_powered_off = m.chaos_powered_off or m.power == PowerState.ON
                 m.power = PowerState.OFF
                 m.hung = False
                 self.log_sel(
@@ -157,15 +165,18 @@ class Fleet:
         if reset_type not in {"On", "ForceOff", "GracefulShutdown", "ForceRestart", "GracefulRestart", "Nmi"}:
             raise ValueError(f"unknown reset_type: {reset_type}")
         if reset_type == "On":
+            m.chaos_powered_off = False
             m.thermal_trip = False
             m.hung = False
             m.power = PowerState.ON
             self.log_sel(system_id, "OK", "PowerStateChange", "System powered on")
         elif reset_type in ("ForceOff", "GracefulShutdown"):
+            m.chaos_powered_off = False
             m.power = PowerState.OFF
             m.hung = False
             self.log_sel(system_id, "OK", "PowerStateChange", "System powered off")
         elif reset_type in ("ForceRestart", "GracefulRestart"):
+            m.chaos_powered_off = False
             m.power = PowerState.OFF
             m.power = PowerState.ON
             m.thermal_trip = False
@@ -224,13 +235,17 @@ class Fleet:
         self.ambient_offset_c = 0.0
 
     def clear_chaos(self) -> None:
-        """Clear chaos state; real faults (thermal_trip) persist."""
+        """Clear chaos state and restore chaos-terminated machines."""
         self.ambient_offset_c = 0.0
         for m in self.machines.values():
             m.thermal_offset_c = 0.0
             m.thermal_until = 0.0
             m.psu_ok = {1: True, 2: True}
             m.hung = False
+            m.thermal_trip = False
+            if m.chaos_powered_off:
+                m.power = PowerState.ON
+            m.chaos_powered_off = False
 
     def snapshot(self) -> dict[str, Any]:
         """Point-in-time fleet state for the API layer."""
