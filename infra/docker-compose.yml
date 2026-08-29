@@ -28,3 +28,75 @@ services:
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     restart: unless-stopped
+
+  # NetBox is the inventory the agent asks "who does this machine belong to".
+  # It is heavy (2-4 minutes to first response) and never needed for the
+  # hardware story, so it sits behind a profile: `docker compose --profile
+  # netbox up -d`. Without it every NetBox tool answers from
+  # infra/netbox/seed.json and says so.
+  netbox:
+    image: netboxcommunity/netbox:v4.1-3.0.2
+    container_name: hush-netbox
+    profiles: [netbox]
+    depends_on:
+      - netbox-postgres
+      - netbox-redis
+      - netbox-redis-cache
+    ports:
+      # 8000 is a popular port; HUSH_NETBOX_PORT moves it without touching the
+      # rest of the stack (set HUSH_NETBOX_URL to match).
+      - "${HUSH_NETBOX_PORT:-8000}:8080"
+    environment: &netbox-env
+      DB_HOST: netbox-postgres
+      DB_NAME: netbox
+      DB_USER: netbox
+      DB_PASSWORD: netbox
+      REDIS_HOST: netbox-redis
+      REDIS_PORT: 6379
+      REDIS_DATABASE: 0
+      REDIS_SSL: "false"
+      REDIS_CACHE_HOST: netbox-redis-cache
+      REDIS_CACHE_DATABASE: 1
+      # Local throwaway values for a container that holds nothing but seeded
+      # demo inventory. Override them in .env if you care; never reuse them.
+      SECRET_KEY: hush-local-development-secret-key-not-a-secret-50-chars-min
+      SKIP_SUPERUSER: "false"
+      SUPERUSER_NAME: admin
+      SUPERUSER_EMAIL: admin@example.com
+      SUPERUSER_PASSWORD: admin
+      SUPERUSER_API_TOKEN: ${HUSH_NETBOX_TOKEN:-hush-local-netbox-token-not-a-secret}
+    restart: unless-stopped
+
+  netbox-worker:
+    image: netboxcommunity/netbox:v4.1-3.0.2
+    container_name: hush-netbox-worker
+    profiles: [netbox]
+    depends_on:
+      - netbox
+    command: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py rqworker
+    environment: *netbox-env
+    restart: unless-stopped
+
+  netbox-postgres:
+    image: postgres:16-alpine
+    container_name: hush-netbox-postgres
+    profiles: [netbox]
+    environment:
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: netbox
+    restart: unless-stopped
+
+  netbox-redis:
+    image: valkey/valkey:8.0-alpine
+    container_name: hush-netbox-redis
+    profiles: [netbox]
+    command: valkey-server --appendonly yes
+    restart: unless-stopped
+
+  netbox-redis-cache:
+    image: valkey/valkey:8.0-alpine
+    container_name: hush-netbox-redis-cache
+    profiles: [netbox]
+    command: valkey-server
+    restart: unless-stopped

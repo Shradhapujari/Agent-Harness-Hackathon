@@ -13,7 +13,13 @@ def test_each_named_server_runs_on_its_own_port(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(cli, "run_server", lambda server, port: started.append((server.name, port)))
     for name in cli.SERVERS:
         assert cli.main([name]) == 0
-    assert started == [("alertmanager", 9101), ("redfish", 9102)]
+    assert started == [
+        ("alertmanager", 9101),
+        ("redfish", 9102),
+        ("kubernetes", 9103),
+        ("prometheus", 9104),
+        ("netbox", 9105),
+    ]
 
 
 def test_an_unknown_server_is_rejected_before_anything_starts(monkeypatch: pytest.MonkeyPatch) -> None:

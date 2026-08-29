@@ -7,8 +7,8 @@ from collections.abc import Sequence
 
 from hush_mcp.common import run_server
 
-#: Server name → module. A4 adds kubernetes, prometheus and netbox.
-SERVERS = ("alertmanager", "redfish")
+#: Server name → module. Each runs on its own port (specs/graph.md §5).
+SERVERS = ("alertmanager", "redfish", "kubernetes", "prometheus", "netbox")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
