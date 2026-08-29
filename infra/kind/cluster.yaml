@@ -1,0 +1,19 @@
+# Three real k8s nodes, each pinned to the BMC it "lives in". The agent joins
+# the two worlds on hush.io/bmc: k8s says a node is NotReady, Redfish says
+# whether that machine is hung or simply off.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: hush
+nodes:
+  - role: control-plane
+    labels:
+      hush.io/bmc: R4-N01
+      hush.io/rack: R4
+  - role: worker
+    labels:
+      hush.io/bmc: R4-N04
+      hush.io/rack: R4
+  - role: worker
+    labels:
+      hush.io/bmc: R4-N07
+      hush.io/rack: R4
