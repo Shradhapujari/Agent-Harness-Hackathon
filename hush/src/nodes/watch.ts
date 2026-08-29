@@ -30,7 +30,10 @@ export function createWatch(
   return async (state, context) => {
     const base = process.env.HUSH_ALERTMANAGER_URL ?? "http://localhost:9093";
     for (;;) {
-      const response = await fetcher(`${base}/api/v2/alerts?active=true`);
+      context.signal?.throwIfAborted();
+      const response = await fetcher(`${base}/api/v2/alerts?active=true`, {
+        signal: context.signal
+      });
       if (!response.ok)
         throw new Error(`Alertmanager returned HTTP ${response.status}`);
       const alerts = ((await response.json()) as unknown[])

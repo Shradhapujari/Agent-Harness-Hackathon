@@ -86,7 +86,24 @@ function fileIncidentDependencies(): IncidentDependencies {
     },
     save: saveCheckpoint,
     log: (state) => createLogger(state.graphId, state.runId, state.sessionId),
-    loadPrompt: filePromptLoader
+    loadPrompt: filePromptLoader,
+    runWithTimeout: (operation, timeoutMs, onTimeout) =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          onTimeout();
+          resolve(undefined);
+        }, timeoutMs);
+        operation.then(
+          (value) => {
+            clearTimeout(timer);
+            resolve(value);
+          },
+          (error: unknown) => {
+            clearTimeout(timer);
+            reject(error);
+          }
+        );
+      })
   };
 }
 

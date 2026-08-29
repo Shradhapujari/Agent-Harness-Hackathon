@@ -79,7 +79,9 @@ export const plan: NodeFn = async (state, context) => {
   }
   if (!parsed) {
     return {
-      actions: [],
+      actions: state.actions
+        .filter((action) => action.status === "proposed")
+        .map((action) => ({ ...action, status: "skipped" as const })),
       timeline: [
         timeline(context.clock(), "N3", "plan_parse_error", {
           attempts: LIMITS.PARSE_RETRIES_MAX,
@@ -119,7 +121,12 @@ export const plan: NodeFn = async (state, context) => {
     };
   });
   return {
-    actions,
+    actions: [
+      ...state.actions
+        .filter((action) => action.status === "proposed")
+        .map((action) => ({ ...action, status: "skipped" as const })),
+      ...actions
+    ],
     timeline: [
       timeline(context.clock(), "N3", "plan_created", {
         accepted: actions.length,

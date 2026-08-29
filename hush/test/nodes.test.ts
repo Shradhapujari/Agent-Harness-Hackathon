@@ -5,7 +5,7 @@ import { enrich } from "../src/nodes/enrich.js";
 import { plan } from "../src/nodes/plan.js";
 import { triage } from "../src/nodes/triage.js";
 import { createWatch } from "../src/nodes/watch.js";
-import { alert, evidence, incident, state } from "./helpers.js";
+import { action, alert, evidence, incident, state } from "./helpers.js";
 
 const now = new Date("2026-08-29T12:00:00.000Z");
 
@@ -342,7 +342,8 @@ describe("N3 plan", () => {
       state({
         sessionId: "session-1",
         incident,
-        evidence: [evidence("redfish")]
+        evidence: [evidence("redfish")],
+        actions: [action()]
       }),
       context(harness)
     );
@@ -351,7 +352,47 @@ describe("N3 plan", () => {
     expect(harness.turn.mock.calls[1]?.[1]).toContain(
       "Previous validation error"
     );
-    expect(patch.actions).toEqual([]);
+    expect(patch.actions).toEqual([
+      expect.objectContaining({ id: "act-1", status: "skipped" })
+    ]);
     expect(patch.timeline?.[0]?.event).toBe("plan_parse_error");
+  });
+
+  it("supersedes obsolete proposed actions while retaining their audit record", async () => {
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({
+        text: fenced({
+          actions: [
+            {
+              tool: "kubernetes.cordon_node",
+              args: { name: "R4-N04" },
+              reason: "Use the revised plan.",
+              evidence: ["ev-kubernetes"]
+            }
+          ]
+        }),
+        events: []
+      })
+    };
+
+    const patch = await plan(
+      state({
+        sessionId: "session-1",
+        incident,
+        evidence: [evidence("kubernetes")],
+        actions: [action()]
+      }),
+      context(harness)
+    );
+
+    expect(patch.actions).toEqual([
+      expect.objectContaining({ id: "act-1", status: "skipped" }),
+      expect.objectContaining({
+        id: "act-2",
+        tool: "kubernetes.cordon_node",
+        status: "proposed"
+      })
+    ]);
   });
 });

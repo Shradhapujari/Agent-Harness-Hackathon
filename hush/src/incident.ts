@@ -18,6 +18,11 @@ export type IncidentDependencies = {
   save: (state: RunState) => Promise<void>;
   log: (state: RunState) => Ctx["log"];
   loadPrompt: NonNullable<Ctx["loadPrompt"]>;
+  runWithTimeout: <T>(
+    operation: Promise<T>,
+    timeoutMs: number,
+    onTimeout: () => void
+  ) => Promise<T | undefined>;
   nodes?: Partial<Record<"N0" | "N1" | "N2" | "N3", NodeFn>>;
 };
 
@@ -52,10 +57,10 @@ export async function runIncident(
   let harness: HarnessClient | undefined;
 
   while (state.node in nodes) {
-    if (
-      dependencies.clock().getTime() - Date.parse(state.runStartedAt!) >
-      LIMITS.RUN_TIMEOUT_S * 1000
-    ) {
+    const remaining =
+      LIMITS.RUN_TIMEOUT_S * 1000 -
+      (dependencies.clock().getTime() - Date.parse(state.runStartedAt!));
+    if (remaining <= 0) {
       state = merge(state, {
         node: "N9",
         outcome: "escalated",
@@ -74,15 +79,37 @@ export async function runIncident(
     const node = state.node as keyof typeof nodes;
     if (node !== "N0" && harness === undefined)
       harness = await dependencies.createHarness(state.runId);
+    const controller = new AbortController();
     const context: Ctx = {
       harness: (harness ?? {}) as Ctx["harness"],
       approval: {},
       probes: {},
       clock: dependencies.clock,
       log: dependencies.log(state),
-      loadPrompt: dependencies.loadPrompt
+      loadPrompt: dependencies.loadPrompt,
+      signal: controller.signal
     };
-    state = merge(state, await nodes[node](state, context));
+    const patch = await dependencies.runWithTimeout(
+      nodes[node](state, context),
+      remaining,
+      () => controller.abort()
+    );
+    if (patch === undefined) {
+      state = merge(state, {
+        node: "N9",
+        outcome: "escalated",
+        timeline: [
+          {
+            ts: dependencies.clock().toISOString(),
+            nodeId: state.node,
+            event: "run_timeout"
+          }
+        ]
+      });
+      await dependencies.save(state);
+      break;
+    }
+    state = merge(state, patch);
     const completed = node;
     state = { ...state, node: EDGES[completed](state) };
     await dependencies.save(state);

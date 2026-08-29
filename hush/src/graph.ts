@@ -27,6 +27,7 @@ export interface Ctx {
   clock: () => Date;
   log: (nodeId: NodeId, event: string, detail?: unknown) => void;
   loadPrompt?: (name: string) => Promise<string>;
+  signal?: AbortSignal;
 }
 
 export const LIMITS = {

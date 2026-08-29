@@ -24,6 +24,7 @@ function dependencies(
       logs.push({ runId: state.runId, sessionId: state.sessionId, event });
     },
     loadPrompt: async () => "unused",
+    runWithTimeout: async (operation) => operation,
     nodes
   };
   return { value, saved, logs };
@@ -87,5 +88,24 @@ describe("B3 incident runner", () => {
     expect(result).toMatchObject({ node: "N9", outcome: "escalated" });
     expect(result.timeline.at(-1)?.event).toBe("run_timeout");
     expect(deps.saved.at(-1)?.node).toBe("N9");
+  });
+
+  it("aborts an in-flight node when the immutable deadline expires", async () => {
+    let signal: AbortSignal | undefined;
+    const watch: NodeFn = async (_state, context) => {
+      signal = context.signal;
+      return new Promise(() => undefined);
+    };
+    const deps = dependencies({ N0: watch });
+    deps.value.runWithTimeout = async (_operation, _timeoutMs, onTimeout) => {
+      onTimeout();
+      return undefined;
+    };
+
+    const result = await runIncident({ until: "N3" }, deps.value, vi.fn());
+
+    expect(signal?.aborted).toBe(true);
+    expect(result).toMatchObject({ node: "N9", outcome: "escalated" });
+    expect(deps.saved.at(-1)?.timeline.at(-1)?.event).toBe("run_timeout");
   });
 });
