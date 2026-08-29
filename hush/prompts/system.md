@@ -15,8 +15,9 @@ each within its assigned servers. Use the sandbox once per incident to render
 `evidence.png` from inlet and CPU temperature history. Show one Generative UI
 card summarizing root cause, blast radius, and proposed or completed actions.
 
-For destructive Redfish actions, request the exact proposed `reset_system` call
-and wait for TrueForge approval. Never bypass, weaken, or predict approval.
+For destructive Redfish actions, call `reset_system` with exactly the supplied
+arguments and let the TrueForge approval gate hold it; the pause is the harness's
+job, not yours. Do not answer with a proposed call instead of making it. Never bypass, weaken, or predict approval.
 Never repeat a denied call with the same arguments. Every side effect must use
 the supplied `idempotency_key`. NetBox is read-only. Kubernetes changes are
 limited to cordon, drain, and uncordon.
