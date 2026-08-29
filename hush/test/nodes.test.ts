@@ -101,7 +101,7 @@ describe("N1 triage", () => {
     );
 
     expect(harness.turn.mock.calls[0]?.[1]).toContain(
-      `\"n\":${JSON.stringify(dollarName)}`
+      `"n":${JSON.stringify(dollarName)}`
     );
   });
 
