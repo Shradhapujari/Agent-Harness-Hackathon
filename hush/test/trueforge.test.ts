@@ -84,6 +84,7 @@ describe("agent manifest", () => {
     );
 
     expect(request.manifest.mcpServers).toHaveLength(5);
+    expect(request.manifest.model.name).toBe("openai/gpt-5.6-luna");
     expect(redfish?.requireApprovalForTools).toEqual(["reset_system"]);
     expect(request.manifest.skills).toEqual([{ name: "hush-triage" }]);
   });

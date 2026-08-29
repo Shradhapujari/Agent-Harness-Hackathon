@@ -51,7 +51,10 @@ agent.manifest.instructions = await readFile(
   new URL("../prompts/system.md", import.meta.url),
   "utf8"
 );
-agent.manifest.model.name = process.env.HUSH_MODEL ?? agent.manifest.model.name;
+const model = process.env.HUSH_MODEL ?? agent.manifest.model.name;
+if (model !== "openai/gpt-5.6-luna")
+  throw new Error(`unsupported HUSH_MODEL: ${model}`);
+agent.manifest.model.name = model;
 
 const existing = (await client.agents.list()).data.find(
   (candidate) => candidate.name === agent.name

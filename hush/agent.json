@@ -2,10 +2,9 @@
   "name": "hush-operator",
   "manifest": {
     "model": {
-      "name": "anthropic/claude-sonnet-4-6",
+      "name": "openai/gpt-5.6-luna",
       "params": {
         "max_tokens": 8192,
-        "temperature": 0.1,
         "parallel_tool_calls": true
       }
     },

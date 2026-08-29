@@ -9,7 +9,7 @@ hardware is simulated.
 | Layer | Tool | Version / how it runs | Port | Owner |
 |---|---|---|---|---|
 | Agent harness | **TrueForge** (`npx @truefoundry/trueforge@latest`) | Node ≥ 22.14 (laptop has 24.x); local mode, SQLite | 8790 | B |
-| LLM | Anthropic `claude-sonnet-4-6` (fallback `openai/gpt-4o` if credits given at venue) | API key in TrueForge Settings → Models (never in repo) | — | B |
+| LLM | OpenAI `openai/gpt-5.6-luna` (the only supported model; no fallback) | API key in TrueForge Settings → Models (never in repo) | — | B |
 | Graph controller | **`hush/`** TypeScript, `@truefoundry/trueforge-sdk`, `zod`, `vitest` | `npm run incident -- --scenario crac` | — | B |
 | Hardware/BMC | **`mock-bmc/`** FastAPI Redfish (exists) + new `/metrics` | `uvicorn app.main:app --port 8100` | 8100 | A |
 | Metrics | **Prometheus** v2.x (docker) scraping `mock-bmc:/metrics` (k8s-layer symptoms are posted by the chaos CLI; k8s truth is read live via the kubernetes MCP) | `infra/docker-compose.yml` | 9090 | A |
@@ -28,6 +28,7 @@ Ports are fixed so both laptops match and README commands are copy-paste.
 ## 2. Why these (one line each)
 
 - **TrueForge local mode**: zero infra, persistent sessions in SQLite, native approvals/subagents/sandbox. Hosted mode is out of scope.
+- **One LLM (`openai/gpt-5.6-luna`)**: one tested reasoning path keeps demo behavior and evaluation reproducible; Hush does not silently fall back to another model.
 - **Remote MCP over streamable-http**: TrueForge registers MCP servers by URL (`manifest.type: "remote"`); no stdio. FastMCP gives a URL in ~20 lines.
 - **Five MCP servers, not one**: separate identity, tool allow-lists, and approval policy per layer (graph-engineering principle: tools scoped per mandate).
 - **Prometheus rules on real mock-BMC metrics**: thermal/PSU alerts fire from scraped data, not scripted; chaos injector only adds the k8s/app symptom layer synthetically to reach the 40-alert storm.
@@ -82,7 +83,7 @@ Ports are fixed so both laptops match and README commands are copy-paste.
 | `HUSH_NETBOX_URL` / `HUSH_NETBOX_TOKEN` | mcp/netbox | `http://127.0.0.1:8000` / seeded token |
 | `KUBECONFIG` | mcp/kubernetes, chaos | `~/.kube/config` (context `kind-hush`) |
 | `TRUEFORGE_BASE_URL` | hush controller, register script | `http://localhost:8790` |
-| `HUSH_MODEL` | register script | `anthropic/claude-sonnet-4-6` |
+| `HUSH_MODEL` | register script | `openai/gpt-5.6-luna` (do not override with another model) |
 | `HUSH_APPROVAL_MODE` | hush controller | `terminal` (or `ui`) |
 
 ## 6. Laptop prerequisites (both people)
