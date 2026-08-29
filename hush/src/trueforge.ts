@@ -129,7 +129,7 @@ export class Harness implements HarnessClient {
           // resolved against the session's event list.
           const call =
             calls.get(reference.id) ??
-            (await this.resolveToolCall(sessionId, reference));
+            (await this.resolveToolCall(sessionId, reference, signal));
           result.pendingApproval = {
             threadId: event.threadId,
             toolCallId: reference.id,
@@ -148,9 +148,15 @@ export class Harness implements HarnessClient {
   /** Tool name and arguments for a call the approval event only references. */
   private async resolveToolCall(
     sessionId: string,
-    reference: { id: string; sourceEventId?: string }
+    reference: { id: string; sourceEventId?: string },
+    signal?: AbortSignal
   ): Promise<{ tool: string; args: unknown }> {
-    const response = await this.client.sessions.listEvents(sessionId);
+    signal?.throwIfAborted();
+    const response = await this.client.sessions.listEvents(
+      sessionId,
+      undefined,
+      { abortSignal: signal }
+    );
     for (const { event } of response.data) {
       if (
         event.type !== "model.message" ||

@@ -162,3 +162,19 @@ describe("unwrapToolCall", () => {
     });
   });
 });
+
+describe("recorded I1 session", () => {
+  it("replays the held approval without a TrueForge connection", async () => {
+    const harness = await FakeHarness.fromFile(
+      new URL("./fixtures/session-crac.jsonl", import.meta.url).pathname
+    );
+    await harness.turn();
+    const reset = await harness.turn();
+
+    expect(reset.pendingApproval?.tool).toBe("redfish.reset_system");
+    expect(reset.events.some((e) => e.type === "tool.approval_required")).toBe(
+      true
+    );
+    expect(JSON.stringify(reset.events)).not.toContain("reasoningContent");
+  });
+});

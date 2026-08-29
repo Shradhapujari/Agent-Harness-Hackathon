@@ -1,12 +1,12 @@
 {
   "type": "tool.approval_required",
-  "id": "01m17sasr3kfvs7v7yf4rq7cqm",
-  "createdAt": "2026-08-29T22:13:06.435Z",
+  "id": "01m17ss9frm3rht5zb4t15hek2",
+  "createdAt": "2026-08-29T22:21:01.304Z",
   "threadId": "main",
   "toolCalls": [
     {
-      "id": "call_JqNMzSUkOagWbCFnTFVLq3cg",
-      "sourceEventId": "01m17sapekc0hr8vvdb7e34jya"
+      "id": "call_vzLLdIbdkmpr3BQGjCMcHEuW",
+      "sourceEventId": "01m17ss7a51kn32nehcxztejqy"
     }
   ]
 }
