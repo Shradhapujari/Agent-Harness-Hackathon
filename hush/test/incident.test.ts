@@ -111,6 +111,50 @@ describe("B3 incident runner", () => {
 });
 
 describe("B4 resume runner", () => {
+  it("creates and checkpoints a session before an early escalation", async () => {
+    const page = vi.fn();
+    const report = vi.fn<NodeFn>().mockResolvedValue({});
+    const deps = dependencies({ N10: report });
+    const openSession = vi.fn().mockResolvedValue("session-created");
+    deps.value.createHarness = vi
+      .fn()
+      .mockResolvedValue({ openSession } as unknown as HarnessClient);
+    deps.value.page = page;
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      node: "N9",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 2, parseRetries: 0, verifyAttempts: 2 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(openSession).toHaveBeenCalledOnce();
+    expect(deps.saved[0]).toMatchObject({
+      node: "N9",
+      sessionId: "session-created"
+    });
+    expect(page).toHaveBeenCalledWith(
+      expect.objectContaining({ session_id: "session-created" })
+    );
+    expect(deps.logs).toContainEqual({
+      runId: "inc-20260829-abcd",
+      sessionId: "session-created",
+      event: "paged_human"
+    });
+    expect(result.sessionId).toBe("session-created");
+  });
+
   it("continues a checkpoint through escalation and report with the same session", async () => {
     const report = vi.fn<NodeFn>().mockResolvedValue({});
     const deps = dependencies({
@@ -181,5 +225,55 @@ describe("B4 resume runner", () => {
 
     expect(result.node).toBe("DONE");
     expect(report).toHaveBeenCalledOnce();
+  });
+
+  it("retries N10 after a report timeout without paging again", async () => {
+    const page = vi.fn<NodeFn>().mockResolvedValue({ outcome: "escalated" });
+    const report = vi.fn<NodeFn>().mockResolvedValue({});
+    const deps = dependencies({ N9: page, N10: report });
+    deps.value.runWithTimeout = async (_operation, _timeoutMs, onTimeout) => {
+      onTimeout();
+      return undefined;
+    };
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      sessionId: "session-existing",
+      node: "N10",
+      outcome: "recovered",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 2, parseRetries: 0, verifyAttempts: 2 },
+      timeline: []
+    };
+
+    const timedOut = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(timedOut.node).toBe("N10");
+    expect(timedOut.outcome).toBe("recovered");
+    expect(timedOut.timeline.at(-1)).toMatchObject({
+      nodeId: "N10",
+      event: "run_timeout"
+    });
+    expect(page).not.toHaveBeenCalled();
+
+    const resumedDeps = dependencies({ N9: page, N10: report });
+    const resumed = await runIncident(
+      { until: "DONE" },
+      resumedDeps.value,
+      vi.fn(),
+      timedOut
+    );
+
+    expect(resumed.node).toBe("DONE");
+    expect(page).not.toHaveBeenCalled();
+    expect(report).toHaveBeenCalledTimes(2);
   });
 });

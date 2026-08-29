@@ -106,6 +106,11 @@ export async function runIncident(
     const node = state.node as keyof typeof nodes;
     if (node !== "N0" && harness === undefined)
       harness = await dependencies.createHarness(state.runId);
+    if (node === "N9" && !state.sessionId) {
+      const sessionId = await harness!.openSession();
+      state = merge(state, { sessionId });
+      await dependencies.save(state);
+    }
     const controller = new AbortController();
     const context: Ctx = {
       harness: (harness ?? {}) as Ctx["harness"],
@@ -127,8 +132,8 @@ export async function runIncident(
     );
     if (patch === undefined) {
       state = merge(state, {
-        node: "N9",
-        outcome: "escalated",
+        node: terminal ? node : "N9",
+        ...(terminal ? {} : { outcome: "escalated" as const }),
         timeline: [
           {
             ts: dependencies.clock().toISOString(),
