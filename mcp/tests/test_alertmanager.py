@@ -176,3 +176,20 @@ def test_correlate_tool_returns_the_pure_functions_answer() -> None:
     result = alertmanager.correlate_alerts(alerts=alerts)
     assert result["clusters"][0]["leading_alert"] == "f1"
     assert result["noise"] == []
+
+
+def test_the_run_id_reaches_the_log_line(monkeypatch: pytest.MonkeyPatch, caplog: Any) -> None:
+    """Cheap correlation: one grep joins a harness trace to the tool calls it made."""
+    _mock(monkeypatch, lambda r: httpx.Response(200, json=[]))
+    with caplog.at_level("INFO", logger="hush-mcp"):
+        alertmanager.list_alerts(run_id="inc-42")
+    assert '"run_id": "inc-42"' in caplog.text
+
+
+def test_a_call_without_a_run_id_logs_no_empty_field(
+    monkeypatch: pytest.MonkeyPatch, caplog: Any
+) -> None:
+    _mock(monkeypatch, lambda r: httpx.Response(200, json=[]))
+    with caplog.at_level("INFO", logger="hush-mcp"):
+        alertmanager.list_alerts()
+    assert "run_id" not in caplog.text

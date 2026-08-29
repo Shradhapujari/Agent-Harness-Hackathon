@@ -92,6 +92,24 @@ def test_query_range_trims_series_harder_than_instant_queries(monkeypatch: pytes
     assert result["truncated"] is True
 
 
+def test_a_scalar_answer_is_an_answer_not_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`count(up)` and friends return one [ts, value] pair, not a list of series."""
+    body = {"status": "success", "data": {"resultType": "scalar", "result": [1788000000, "12"]}}
+    _mock(monkeypatch, lambda r: httpx.Response(200, json=body))
+    result = prometheus.query("scalar(count(hush_power_on))")
+    assert result["result_type"] == "scalar"
+    assert result["value"] == "12"
+    assert "error" not in result
+
+
+def test_dropped_range_points_are_declared(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A trend read from 40 of 400 points is a different claim than one read from all."""
+    _mock(monkeypatch, lambda r: httpx.Response(200, json=_matrix(1, prometheus.MAX_POINTS + 12)))
+    series = prometheus.query_range("hush_cpu_temp_celsius")["series"][0]
+    assert series["points_total"] == prometheus.MAX_POINTS + 12
+    assert series["points_dropped"] == 12
+
+
 def test_a_promql_error_comes_back_as_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
     body = {"status": "error", "errorType": "bad_data", "error": "parse error at char 5"}
     _mock(monkeypatch, lambda r: httpx.Response(200, json=body))

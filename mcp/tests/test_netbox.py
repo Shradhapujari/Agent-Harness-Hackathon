@@ -111,6 +111,29 @@ def test_blast_radius_groups_the_machines_by_tenant(monkeypatch: pytest.MonkeyPa
     assert radius["missing"] == []
 
 
+def test_a_paged_answer_is_read_to_the_end(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A blast radius that is quietly too small is worse than none at all."""
+    pages = [
+        {"count": 2, "next": "http://netbox/api/dcim/devices/?offset=1", "results": [_live_device("R4-N01")]},
+        {"count": 2, "next": None, "results": [_live_device("R4-N02", tenant="globex")]},
+    ]
+    seen = _mock(monkeypatch, lambda r: httpx.Response(200, json=pages.pop(0)))
+    rack = netbox.list_rack_devices("R4")
+    assert len(seen) == 2
+    assert [d["name"] for d in rack["devices"]] == ["R4-N01", "R4-N02"]
+    assert rack["tenants"] == ["acme", "globex"]
+
+
+def test_an_endless_pagination_loop_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    page = {
+        "count": 99,
+        "next": "http://netbox/api/dcim/devices/?offset=1",
+        "results": [_live_device("R4-N01")],
+    }
+    _mock(monkeypatch, lambda r: httpx.Response(200, json=page))
+    assert netbox.list_rack_devices("R4")["source"] == "fallback"
+
+
 def test_blast_radius_says_which_machines_it_could_not_find(monkeypatch: pytest.MonkeyPatch) -> None:
     _mock(monkeypatch, lambda r: httpx.Response(200, json=_results(_live_device("R4-N04"))))
     radius = netbox.get_blast_radius(["R4-N04", "R9-N99"])

@@ -10,16 +10,26 @@ KIND_CONTEXT := kind-$(KIND_CLUSTER)
 NETBOX_URL := $(or $(HUSH_NETBOX_URL),http://127.0.0.1:8000)
 KIND_NODES := $(shell grep -cE '^[[:space:]]*-[[:space:]]+role:[[:space:]]' infra/kind/cluster.yaml)
 
-.PHONY: sync up down kind-up kind-down netbox-up netbox-seed smoke test
+.PHONY: sync up down kind-up kind-down netbox-up netbox-seed mcp-up mcp-down smoke test
 
 sync:
 	uv sync --all-packages
 
+# One command for the whole simulated data center: services, cluster, inventory
+# and the five MCP URLs the harness registers. Safe to re-run — kind-up is
+# skipped when the cluster exists, NetBox seeding is idempotent, and an MCP
+# server that is already listening is left alone.
 up:
-	$(COMPOSE) up -d --build
+	$(COMPOSE) --profile netbox up -d --build
+	@kind get clusters 2>/dev/null | grep -qx $(KIND_CLUSTER) \
+	  && echo "kind cluster $(KIND_CLUSTER) already up" \
+	  || $(MAKE) kind-up
+	@$(MAKE) netbox-seed || echo "netbox not seeded; tools fall back to infra/netbox/seed.json" >&2
+	./scripts/mcp-up.sh
 
 down:
-	$(COMPOSE) down -v
+	./scripts/mcp-down.sh
+	$(COMPOSE) --profile netbox down -v
 
 # Every kubectl call is pinned to the kind context this target just created,
 # so the demo workloads can never be applied to a real cluster that happens to
@@ -50,16 +60,24 @@ kind-down:
 	kind delete cluster --name $(KIND_CLUSTER)
 
 # NetBox is optional and slow to start (2-4 min to first API response). Every
-# NetBox tool answers from infra/netbox/seed.json until it is up.
+# NetBox tool answers from infra/netbox/seed.json until it is up. /api/status/
+# answers 403 without a token, which still means NetBox is serving.
 netbox-up:
 	$(COMPOSE) --profile netbox up -d
 	@for i in $$(seq 1 60); do \
-	  if curl -sf -o /dev/null $(NETBOX_URL)/api/status/; then echo "netbox ready"; exit 0; fi; \
+	  code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 $(NETBOX_URL)/api/status/); \
+	  case "$$code" in 200|403) echo "netbox ready ($$code)"; exit 0;; esac; \
 	  sleep 5; \
 	done; echo "netbox did not answer within 5 minutes" >&2; exit 1
 
 netbox-seed: netbox-up
 	uv run python infra/netbox/seed.py
+
+mcp-up:
+	./scripts/mcp-up.sh
+
+mcp-down:
+	./scripts/mcp-down.sh
 
 smoke:
 	./scripts/smoke.sh

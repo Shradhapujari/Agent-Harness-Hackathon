@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Sequence
 from typing import Any
 
@@ -44,5 +45,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    print(json.dumps(run(args), indent=2))
-    return 0
+    try:
+        result = run(args)
+    except (RuntimeError, ValueError) as exc:
+        # A scenario that could not set the stage must not look like one that did.
+        print(json.dumps({"command": args.command, "error": str(exc)}, indent=2), file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2))
+    return 1 if result.get("failed_nodes") else 0

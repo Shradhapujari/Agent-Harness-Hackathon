@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from kubernetes.client.rest import ApiException
 
 from hush_mcp import common, kubernetes
 
@@ -98,3 +99,38 @@ def test_repeating_a_drain_key_replays_instead_of_evicting_again() -> None:
     second = kubernetes.drain_node(name="hush-worker", idempotency_key="d1")
     assert second["replayed"] is True
     assert second["evicted"] == first["evicted"]
+
+
+def test_one_key_reused_across_tools_does_not_replay_the_wrong_action() -> None:
+    """Uncordoning with the cordon's key must not leave the node cordoned."""
+    kubernetes.cordon_node(name="hush-worker", idempotency_key="same")
+    result = kubernetes.uncordon_node(name="hush-worker", idempotency_key="same")
+    assert "replayed" not in result
+    node = next(n for n in kubernetes.list_nodes()["nodes"] if n["name"] == "hush-worker")
+    assert node["unschedulable"] is False
+
+
+def test_a_drain_blocked_by_a_disruption_budget_is_reported() -> None:
+    api = kubernetes.api()
+
+    def refuse(name: str, namespace: str, body: object) -> object:
+        raise ApiException(status=429, reason="Cannot evict pod as it would violate the budget")
+
+    api.create_namespaced_pod_eviction = refuse  # type: ignore[method-assign]
+    result = kubernetes.drain_node(name="hush-worker", idempotency_key="d1")
+    assert result["evicted"] == []
+    assert len(result["blocked"]) == 3
+    assert "429" in result["blocked"][0]
+
+
+def test_a_drain_that_failed_for_any_other_reason_is_an_error() -> None:
+    """A drain reported as a partial success would let the agent power off a full node."""
+    api = kubernetes.api()
+
+    def unauthorized(name: str, namespace: str, body: object) -> object:
+        raise ApiException(status=403, reason="Forbidden")
+
+    api.create_namespaced_pod_eviction = unauthorized  # type: ignore[method-assign]
+    result = kubernetes.drain_node(name="hush-worker", idempotency_key="d1")
+    assert result["error"]["code"] == "ApiException"
+    assert "ok" not in result

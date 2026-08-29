@@ -65,12 +65,15 @@ def _matcher(expr: str) -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def list_alerts(active: bool = True, filter: list[str] | None = None) -> dict[str, Any]:  # noqa: A002 - contract name
+def list_alerts(  # noqa: A002 - `filter` is the contract name
+    active: bool = True, filter: list[str] | None = None, run_id: str = ""
+) -> dict[str, Any]:
     """List alerts from Alertmanager, optionally narrowed by label matchers.
 
     Args:
         active: only currently firing alerts (False also returns silenced ones).
         filter: Alertmanager matchers, e.g. ["rack=R4", "severity=critical"].
+        run_id: the incident run this call belongs to; logged, never acted on.
     """
     params: list[tuple[str, str | int | float | bool | None]] = [
         ("active", active),
@@ -87,7 +90,7 @@ def list_alerts(active: bool = True, filter: list[str] | None = None) -> dict[st
 
 @mcp.tool()
 @guarded
-def get_alert_groups() -> dict[str, Any]:
+def get_alert_groups(run_id: str = "") -> dict[str, Any]:
     """List Alertmanager's own grouping of the firing alerts (labels + fingerprints)."""
     with _client() as http:
         response = http.get("/api/v2/alerts/groups")
@@ -105,7 +108,7 @@ def get_alert_groups() -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def correlate_alerts(alerts: list[Alert], window_s: int = 120) -> dict[str, Any]:
+def correlate_alerts(alerts: list[Alert], window_s: int = 120, run_id: str = "") -> dict[str, Any]:
     """Cluster alerts by rack and time window; returns clusters (biggest first) and noise.
 
     The leading alert of a cluster is its earliest, lowest-layer alert:
@@ -117,7 +120,7 @@ def correlate_alerts(alerts: list[Alert], window_s: int = 120) -> dict[str, Any]
 @mcp.tool()
 @idempotent
 def silence_alerts(
-    matchers: list[str], duration_s: int, comment: str, idempotency_key: str
+    matchers: list[str], duration_s: int, comment: str, idempotency_key: str, run_id: str = ""
 ) -> dict[str, Any]:
     """Silence every alert matching `matchers` for `duration_s` seconds.
 

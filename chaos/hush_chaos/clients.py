@@ -75,6 +75,26 @@ class AmClient:
             silence_id: str = response.json().get("silenceID", "")
         return silence_id
 
+    def expire_silences(self, created_by: str) -> list[str]:
+        """End every active silence this CLI created; returns the ids it ended.
+
+        A `clear` silence would otherwise swallow the next scenario: alerts
+        posted a minute later match it immediately and never show as firing.
+        """
+        with self._client() as http:
+            response = http.get("/api/v2/silences")
+            response.raise_for_status()
+            silences = response.json()
+            ended = []
+            for silence in silences:
+                state = (silence.get("status") or {}).get("state")
+                if silence.get("createdBy") != created_by or state == "expired":
+                    continue
+                deleted = http.delete(f"/api/v2/silence/{silence['id']}")
+                deleted.raise_for_status()
+                ended.append(str(silence["id"]))
+        return ended
+
     def list_alerts(self, filters: list[str] | None = None, silenced: bool = True) -> list[dict[str, Any]]:
         params: list[tuple[str, str | int | float | bool | None]] = [
             ("active", True),

@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from hush_mcp.common import env, guarded, make_server
+from hush_mcp.common import env, guarded, log, make_server
 
 PORT = 9105
 mcp = make_server("netbox")
@@ -62,16 +62,37 @@ def _from_netbox(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: A rack holds tens of devices, not thousands; this only bounds a runaway loop.
+MAX_PAGES = 10
+
+
 def _live_devices(params: dict[str, Any]) -> list[dict[str, Any]] | None:
-    """Query NetBox; return None if it is slow, down, or unhappy."""
+    """Query NetBox, following pagination; return None if it is slow or down.
+
+    NetBox pages its answers, so reading only the first page would quietly drop
+    devices — and a blast radius that is quietly too small is worse than no
+    blast radius at all.
+    """
+    raw: list[dict[str, Any]] = []
     try:
         with _client() as http:
             response = http.get("/api/dcim/devices/", params=params)
-            response.raise_for_status()
-            results = response.json().get("results") or []
+            for _ in range(MAX_PAGES):
+                response.raise_for_status()
+                page = response.json()
+                raw += page.get("results") or []
+                next_url = page.get("next")
+                if not next_url:
+                    break
+                response = http.get(next_url)
+            else:
+                # More pages than a rack can hold means NetBox is answering
+                # something we did not ask; the seeded answer is safer.
+                log.warning(json.dumps({"tool": "netbox", "pages": MAX_PAGES, "fell_back": True}))
+                return None
     except (httpx.HTTPError, ValueError):
         return None
-    return [_from_netbox(d) for d in results]
+    return [_from_netbox(d) for d in raw]
 
 
 def _devices(params: dict[str, Any], match: Any) -> tuple[list[dict[str, Any]], str]:
@@ -84,7 +105,7 @@ def _devices(params: dict[str, Any], match: Any) -> tuple[list[dict[str, Any]], 
 
 @mcp.tool()
 @guarded
-def get_device(name: str) -> dict[str, Any]:
+def get_device(name: str, run_id: str = "") -> dict[str, Any]:
     """Inventory record for one device: rack, site, role, tenant, model, serial."""
     devices, source = _devices({"name": name}, lambda d: d["name"] == name)
     if not devices:
@@ -94,7 +115,7 @@ def get_device(name: str) -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def list_rack_devices(rack: str) -> dict[str, Any]:
+def list_rack_devices(rack: str, run_id: str = "") -> dict[str, Any]:
     """Every device in a rack, plus the tenants those devices belong to."""
     devices, source = _devices({"rack": rack, "limit": 100}, lambda d: d["rack"] == rack)
     return {
@@ -107,7 +128,7 @@ def list_rack_devices(rack: str) -> dict[str, Any]:
 
 @mcp.tool()
 @guarded
-def get_blast_radius(nodes: list[str]) -> dict[str, Any]:
+def get_blast_radius(nodes: list[str], run_id: str = "") -> dict[str, Any]:
     """Who is affected if these machines go away — the question an approval turns on."""
     wanted = set(nodes)
     devices, source = _devices({"name": nodes, "limit": 100}, lambda d: d["name"] in wanted)
