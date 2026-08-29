@@ -15,7 +15,8 @@ function context(harness: unknown): Ctx {
     approval: {},
     probes: {},
     clock: () => now,
-    log: vi.fn()
+    log: vi.fn(),
+    loadPrompt: async () => "{{alerts}}{{incident}}{{context}}{{schema}}"
   };
 }
 
@@ -34,12 +35,21 @@ describe("N0 watch", () => {
         rack: "R4"
       },
       startsAt: "2026-08-29T11:59:30.000Z",
-      status: { state: "firing" }
+      status: { state: "active", silencedBy: [], inhibitedBy: [] }
+    }));
+    const inactive = ["suppressed", "unprocessed"].map((status, index) => ({
+      ...raw[index],
+      fingerprint: `ignored-${status}`,
+      status: { state: status, silencedBy: [], inhibitedBy: [] }
     }));
     const fetcher = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify(raw.slice(0, 14))))
-      .mockResolvedValueOnce(new Response(JSON.stringify(raw)));
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([...raw.slice(0, 14), ...inactive]))
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([...raw, ...inactive]))
+      );
     const sleep = vi.fn().mockResolvedValue(undefined);
 
     const patch = await createWatch(fetcher, sleep)(state(), context({}));
@@ -48,6 +58,7 @@ describe("N0 watch", () => {
     expect(sleep).toHaveBeenCalledWith(5_000);
     expect(patch.runId).toMatch(/^inc-20260829-[0-9a-f]{4}$/u);
     expect(patch.alerts).toHaveLength(15);
+    expect(patch.alerts?.every((item) => item.status === "firing")).toBe(true);
     expect(patch.timeline?.[0]).toMatchObject({ event: "storm_detected" });
   });
 
@@ -57,7 +68,7 @@ describe("N0 watch", () => {
       labels: { alertname: "HostHung", severity: "critical", layer: "bmc" },
       startsAt:
         index === 0 ? "2026-08-29T11:57:59.999Z" : "2026-08-29T11:59:30.000Z",
-      status: { state: "firing" }
+      status: { state: "active", silencedBy: [], inhibitedBy: [] }
     }));
     const fresh = current.map((item) => ({
       ...item,
@@ -110,7 +121,7 @@ describe("N1 triage", () => {
 });
 
 describe("N2 enrich", () => {
-  it("returns evidence and records insufficient subagent fan-out", async () => {
+  it("bounds insufficient subagent fan-out then marks fallback escalation", async () => {
     const layers = [
       evidence("redfish"),
       evidence("netbox"),
@@ -124,16 +135,60 @@ describe("N2 enrich", () => {
       })
     };
 
-    const patch = await enrich(
+    const first = await enrich(
       state({ sessionId: "session-1", incident }),
       context(harness)
     );
+    const second = await enrich(
+      state({
+        sessionId: "session-1",
+        incident,
+        timeline: first.timeline ?? []
+      }),
+      context(harness)
+    );
 
-    expect(patch.evidence).toBeUndefined();
-    expect(patch.timeline?.map((item) => item.event)).toEqual([
+    expect(first.evidence).toBeUndefined();
+    expect(first.timeline?.map((item) => item.event)).toEqual([
       "subagents_spawned",
       "subagent_count_low"
     ]);
+    expect(second.evidence).toEqual(layers);
+    expect(second.timeline?.map((item) => item.event)).toContain(
+      "enrich_fallback_escalation"
+    );
+  });
+
+  it("bounds malformed output retries and appends the prior error", async () => {
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi
+        .fn()
+        .mockResolvedValue({ text: fenced({ nope: true }), events: [] })
+    };
+    const first = await enrich(
+      state({ sessionId: "session-1", incident }),
+      context(harness)
+    );
+    const second = await enrich(
+      state({
+        sessionId: "session-1",
+        incident,
+        counters: first.counters,
+        timeline: first.timeline ?? []
+      }),
+      context(harness)
+    );
+
+    expect(first.counters?.parseRetries).toBe(1);
+    expect(harness.turn.mock.calls[1][1]).toContain(
+      "Previous validation error:"
+    );
+    expect(second.counters?.parseRetries).toBe(2);
+    expect(second.evidence).toHaveLength(3);
+    expect(second.timeline?.map((item) => item.event)).toContain(
+      "enrich_fallback_escalation"
+    );
   });
 
   it("retries one missing layer then records explicit fallback evidence", async () => {
@@ -214,5 +269,89 @@ describe("N3 plan", () => {
     expect(first.actions?.[0].idempotencyKey).toBe(
       second.actions?.[0].idempotencyKey
     );
+  });
+
+  it("rejects denied canonical actions and missing evidence, and owns collision-free ids", async () => {
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({
+        text: fenced({
+          actions: [
+            {
+              id: "model-controlled",
+              tool: "redfish.reset_system",
+              args: { system_id: "R4-N04", reset_type: "ForceRestart" },
+              reason: "Retry a denied action.",
+              evidence: ["ev-redfish"]
+            },
+            {
+              id: "act-1",
+              tool: "kubernetes.drain_node",
+              args: { name: "R4-N04" },
+              reason: "Unsupported evidence.",
+              evidence: ["ev-missing"]
+            },
+            {
+              id: "act-1",
+              tool: "kubernetes.cordon_node",
+              args: { name: "R4-N04" },
+              reason: "Prevent new scheduling.",
+              evidence: ["ev-kubernetes"]
+            }
+          ]
+        }),
+        events: []
+      })
+    };
+    const input = state({
+      sessionId: "session-1",
+      incident,
+      evidence: [evidence("redfish"), evidence("kubernetes")],
+      actions: [
+        {
+          id: "act-1",
+          rank: 1,
+          kind: "destructive",
+          tool: "redfish.reset_system",
+          args: { reset_type: "ForceRestart", system_id: "R4-N04" },
+          idempotencyKey: "prior",
+          reason: "Operator denied it.",
+          evidence: ["ev-redfish"],
+          status: "denied"
+        }
+      ]
+    });
+
+    const patch = await plan(input, context(harness));
+
+    expect(patch.actions).toEqual([
+      expect.objectContaining({
+        id: "act-2",
+        tool: "kubernetes.cordon_node"
+      })
+    ]);
+  });
+
+  it("bounds malformed output and escalates through an empty plan", async () => {
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({ text: "not json", events: [] })
+    };
+
+    const patch = await plan(
+      state({
+        sessionId: "session-1",
+        incident,
+        evidence: [evidence("redfish")]
+      }),
+      context(harness)
+    );
+
+    expect(harness.turn).toHaveBeenCalledTimes(2);
+    expect(harness.turn.mock.calls[1]?.[1]).toContain(
+      "Previous validation error"
+    );
+    expect(patch.actions).toEqual([]);
+    expect(patch.timeline?.[0]?.event).toBe("plan_parse_error");
   });
 });

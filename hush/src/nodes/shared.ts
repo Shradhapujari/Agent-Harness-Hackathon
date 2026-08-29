@@ -14,15 +14,17 @@ export function harnessClient(value: unknown): HarnessClient {
 
 export async function render(
   name: "triage" | "enrich" | "plan",
-  values: Record<string, string>
+  values: Record<string, string>,
+  load: (name: string) => Promise<string> = filePromptLoader
 ): Promise<string> {
-  let template = await readFile(
-    new URL(`../../prompts/${name}.md`, import.meta.url),
-    "utf8"
-  );
+  let template = await load(name);
   for (const [key, value] of Object.entries(values))
     template = template.replaceAll(`{{${key}}}`, value);
   return template;
+}
+
+export function filePromptLoader(name: string): Promise<string> {
+  return readFile(new URL(`../../prompts/${name}.md`, import.meta.url), "utf8");
 }
 
 export function timeline(

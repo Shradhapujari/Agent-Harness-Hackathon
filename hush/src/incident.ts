@@ -1,23 +1,27 @@
-import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
-
-import { saveCheckpoint } from "./checkpoint.js";
 import { EDGES } from "./edges.js";
-import { merge, type Ctx, type NodeId } from "./graph.js";
-import { createLogger } from "./log.js";
+import { LIMITS, merge, type Ctx, type NodeFn } from "./graph.js";
 import { enrich } from "./nodes/enrich.js";
 import { plan } from "./nodes/plan.js";
 import { triage } from "./nodes/triage.js";
 import { watch } from "./nodes/watch.js";
 import type { RunState } from "./state.js";
-import { createHarness } from "./trueforge.js";
+import type { HarnessClient } from "./trueforge.js";
 
 export type IncidentOptions = {
   scenario?: "crac" | "hang";
   until: "N3";
 };
 
-const B3_NODES = { N0: watch, N1: triage, N2: enrich, N3: plan } as const;
+export type IncidentDependencies = {
+  clock: () => Date;
+  createHarness: (runId: string) => Promise<HarnessClient>;
+  save: (state: RunState) => Promise<void>;
+  log: (state: RunState) => Ctx["log"];
+  loadPrompt: NonNullable<Ctx["loadPrompt"]>;
+  nodes?: Partial<Record<"N0" | "N1" | "N2" | "N3", NodeFn>>;
+};
+
+const DEFAULT_NODES = { N0: watch, N1: triage, N2: enrich, N3: plan } as const;
 
 function initialState(
   now: Date,
@@ -27,6 +31,7 @@ function initialState(
   return {
     graphId: "hush-incident",
     runId: `inc-${date}-0000`,
+    runStartedAt: now.toISOString(),
     node: "N0",
     scenarioHint: scenario,
     alerts: [],
@@ -39,40 +44,49 @@ function initialState(
 
 export async function runIncident(
   options: IncidentOptions,
+  dependencies: IncidentDependencies,
   write: (value: unknown) => void = console.log
 ): Promise<RunState> {
-  let state = initialState(new Date(), options.scenario);
-  let context: Ctx = {
-    harness: {},
-    approval: {},
-    probes: {},
-    clock: () => new Date(),
-    log: () => undefined
-  };
+  let state = initialState(dependencies.clock(), options.scenario);
+  const nodes = { ...DEFAULT_NODES, ...dependencies.nodes };
+  let harness: HarnessClient | undefined;
 
-  while (state.node in B3_NODES) {
-    const node = state.node as keyof typeof B3_NODES;
-    if (node !== "N0" && !("turn" in context.harness)) {
-      const eventsPath = `runs/${state.runId}/events.jsonl`;
-      mkdirSync(dirname(eventsPath), { recursive: true });
-      const harness = await createHarness((event) => {
-        appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, "utf8");
+  while (state.node in nodes) {
+    if (
+      dependencies.clock().getTime() - Date.parse(state.runStartedAt!) >
+      LIMITS.RUN_TIMEOUT_S * 1000
+    ) {
+      state = merge(state, {
+        node: "N9",
+        outcome: "escalated",
+        timeline: [
+          {
+            ts: dependencies.clock().toISOString(),
+            nodeId: state.node,
+            event: "run_timeout"
+          }
+        ]
       });
-      context = {
-        ...context,
-        harness: harness as unknown as Ctx["harness"],
-        log: createLogger(state.graphId, state.runId, state.sessionId)
-      };
-    }
-
-    state = merge(state, await B3_NODES[node](state, context));
-    const completed = node;
-    if (completed === options.until) {
-      await saveCheckpoint(state);
+      await dependencies.save(state);
       break;
     }
-    state = { ...state, node: EDGES[completed](state) as NodeId };
-    await saveCheckpoint(state);
+
+    const node = state.node as keyof typeof nodes;
+    if (node !== "N0" && harness === undefined)
+      harness = await dependencies.createHarness(state.runId);
+    const context: Ctx = {
+      harness: (harness ?? {}) as Ctx["harness"],
+      approval: {},
+      probes: {},
+      clock: dependencies.clock,
+      log: dependencies.log(state),
+      loadPrompt: dependencies.loadPrompt
+    };
+    state = merge(state, await nodes[node](state, context));
+    const completed = node;
+    state = { ...state, node: EDGES[completed](state) };
+    await dependencies.save(state);
+    if (completed === options.until) break;
   }
 
   write({

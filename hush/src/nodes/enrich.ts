@@ -1,59 +1,124 @@
 import { z } from "zod";
 
-import type { NodeFn } from "../graph.js";
+import { LIMITS, type NodeFn } from "../graph.js";
 import { Evidence } from "../state.js";
 import { lastJsonBlock } from "../trueforge.js";
 import { harnessClient, render, timeline } from "./shared.js";
 
 const Output = z.object({ evidence: z.array(Evidence) });
 const schema = JSON.stringify({ evidence: ["Evidence"] });
+const required = ["redfish", "netbox", "kubernetes"] as const;
+
+function fallbackEvidence(
+  layers: readonly (typeof required)[number][],
+  reason: string
+) {
+  return layers.map((layer) => ({
+    id: `ev-${layer}-fallback`,
+    layer,
+    summary: `${layer} enrichment unavailable after bounded retry`,
+    data: { reason },
+    source: "fallback" as const
+  }));
+}
 
 export const enrich: NodeFn = async (state, context) => {
   if (!state.incident) throw new Error("N2 requires an incident");
   if (!state.sessionId) throw new Error("N2 requires a session");
+  const priorError = [...state.timeline]
+    .reverse()
+    .find((item) => item.nodeId === "N2" && item.event === "parse_error");
   const result = await harnessClient(context.harness).turn(
     state.sessionId,
-    await render("enrich", {
-      incident: JSON.stringify(state.incident),
-      schema
-    }),
+    await render(
+      "enrich",
+      {
+        incident: JSON.stringify(state.incident),
+        schema: `${schema}${priorError ? `\nPrevious validation error: ${String(priorError.detail)}` : ""}`
+      },
+      context.loadPrompt
+    ),
     { runId: state.runId, nodeId: "N2" }
   );
   const spawned = result.events.filter(
     (event) => (event as { type: string }).type === "thread.created"
   ).length;
-  const output = Output.parse(lastJsonBlock(result.text));
-  if (spawned < 3)
+  let output: z.infer<typeof Output>;
+  try {
+    output = Output.parse(lastJsonBlock(result.text));
+  } catch (error) {
+    const parseRetries = state.counters.parseRetries + 1;
+    const nodeRetries =
+      state.timeline.filter(
+        (item) => item.nodeId === "N2" && item.event === "parse_error"
+      ).length + 1;
+    const exhausted = nodeRetries >= LIMITS.PARSE_RETRIES_MAX;
+    return {
+      counters: { ...state.counters, parseRetries },
+      ...(exhausted
+        ? {
+            evidence: fallbackEvidence(
+              required,
+              "invalid N2 output after two attempts"
+            )
+          }
+        : {}),
+      timeline: [
+        timeline(context.clock(), "N2", "parse_error", String(error)),
+        ...(exhausted
+          ? [
+              timeline(context.clock(), "N2", "enrich_fallback_escalation", {
+                reason: "parse retries exhausted"
+              })
+            ]
+          : [])
+      ]
+    };
+  }
+  const fanoutRetried = state.timeline.some(
+    (item) => item.nodeId === "N2" && item.event === "subagent_count_low"
+  );
+  if (spawned < 3 && !fanoutRetried)
     return {
       timeline: [
         timeline(context.clock(), "N2", "subagents_spawned", {
           count: spawned
         }),
         timeline(context.clock(), "N2", "subagent_count_low", {
-          count: spawned
+          count: spawned,
+          retry: true
         })
       ]
     };
-  const required = ["redfish", "netbox", "kubernetes"] as const;
   const present = new Set(output.evidence.map((item) => item.layer));
   const missing = required.filter((layer) => !present.has(layer));
   const retried = state.timeline.some(
     (item) => item.nodeId === "N2" && item.event === "enrich_missing_layers"
   );
-  const fallback = retried
-    ? missing.map((layer) => ({
-        id: `ev-${layer}-fallback`,
-        layer,
-        summary: `${layer} enrichment unavailable after retry`,
-        data: { reason: "missing from two enrichment turns" },
-        source: "fallback" as const
-      }))
-    : [];
+  const fallback =
+    retried || fanoutRetried
+      ? fallbackEvidence(
+          missing,
+          fanoutRetried
+            ? "insufficient subagent fan-out after retry"
+            : "missing from two enrichment turns"
+        )
+      : [];
   return {
     evidence:
-      retried || missing.length === 0 ? [...output.evidence, ...fallback] : [],
+      retried || fanoutRetried || missing.length === 0
+        ? [...output.evidence, ...fallback]
+        : [],
     timeline: [
       timeline(context.clock(), "N2", "subagents_spawned", { count: spawned }),
+      ...(fanoutRetried && spawned < 3
+        ? [
+            timeline(context.clock(), "N2", "enrich_fallback_escalation", {
+              reason: "subagent fan-out remained below three",
+              count: spawned
+            })
+          ]
+        : []),
       ...(missing.length > 0
         ? [
             timeline(context.clock(), "N2", "enrich_missing_layers", {

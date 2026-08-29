@@ -34,10 +34,14 @@ export const triage: NodeFn = async (state, context) => {
   const priorError = [...state.timeline]
     .reverse()
     .find((item) => item.nodeId === "N1" && item.event === "parse_error");
-  const message = await render("triage", {
-    alerts: JSON.stringify(compact),
-    schema: `${schema}${priorError ? `\nPrevious validation error: ${String(priorError.detail)}` : ""}`
-  });
+  const message = await render(
+    "triage",
+    {
+      alerts: JSON.stringify(compact),
+      schema: `${schema}${priorError ? `\nPrevious validation error: ${String(priorError.detail)}` : ""}`
+    },
+    context.loadPrompt
+  );
   const result = await harness.turn(sessionId, message, {
     runId: state.runId,
     nodeId: "N1"

@@ -7,16 +7,18 @@ import { timeline } from "./shared.js";
 type Fetch = typeof globalThis.fetch;
 type Sleep = (milliseconds: number) => Promise<void>;
 
-function mapAlert(value: unknown): AlertValue {
+function mapAlert(value: unknown): AlertValue | undefined {
   const raw = value as Record<string, unknown>;
   const labels = (raw.labels ?? {}) as Record<string, string>;
+  const state = (raw.status as { state?: string } | undefined)?.state;
+  if (state !== "active") return undefined;
   return Alert.parse({
     fingerprint: raw.fingerprint,
     name: labels.alertname,
     severity: labels.severity ?? "warning",
     labels,
     startsAt: raw.startsAt,
-    status: (raw.status as { state?: string } | undefined)?.state ?? raw.status
+    status: "firing"
   });
 }
 
@@ -31,8 +33,10 @@ export function createWatch(
       const response = await fetcher(`${base}/api/v2/alerts?active=true`);
       if (!response.ok)
         throw new Error(`Alertmanager returned HTTP ${response.status}`);
-      const alerts = ((await response.json()) as unknown[]).map(mapAlert);
-      const firing = alerts.filter((alert) => alert.status === "firing");
+      const alerts = ((await response.json()) as unknown[])
+        .map(mapAlert)
+        .filter((alert): alert is AlertValue => alert !== undefined);
+      const firing = alerts;
       const observed = context.clock();
       const cutoff = observed.getTime() - LIMITS.WINDOW_S * 1000;
       const earliest = Math.min(

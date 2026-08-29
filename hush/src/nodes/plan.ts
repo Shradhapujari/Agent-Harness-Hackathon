@@ -41,9 +41,12 @@ export const plan: NodeFn = async (state, context) => {
   const denied = state.actions
     .filter((action) => action.status === "denied")
     .map(({ tool, args, reason }) => ({ tool, args, reason }));
-  const result = await harnessClient(context.harness).turn(
-    state.sessionId,
-    await render("plan", {
+  const deniedKeys = new Set(
+    denied.map(({ tool, args }) => `${tool}:${stable(args)}`)
+  );
+  const message = await render(
+    "plan",
+    {
       context: JSON.stringify({
         incident: state.incident,
         evidence: state.evidence.map(({ id, layer, summary, source }) => ({
@@ -55,22 +58,60 @@ export const plan: NodeFn = async (state, context) => {
         denied
       }),
       schema
-    }),
-    { runId: state.runId, nodeId: "N3" }
+    },
+    context.loadPrompt
   );
-  const parsed = Output.parse(lastJsonBlock(result.text)).actions;
+  const harness = harnessClient(context.harness);
+  let parsed: z.infer<typeof Proposal>[] | undefined;
+  let validationError = "";
+  for (let attempt = 0; attempt < LIMITS.PARSE_RETRIES_MAX; attempt += 1) {
+    const result = await harness.turn(
+      state.sessionId,
+      `${message}${validationError}`,
+      { runId: state.runId, nodeId: "N3" }
+    );
+    try {
+      parsed = Output.parse(lastJsonBlock(result.text)).actions;
+      break;
+    } catch (error) {
+      validationError = `\nPrevious validation error: ${String(error)}`;
+    }
+  }
+  if (!parsed) {
+    return {
+      actions: [],
+      timeline: [
+        timeline(context.clock(), "N3", "plan_parse_error", {
+          attempts: LIMITS.PARSE_RETRIES_MAX,
+          error: validationError.trim()
+        })
+      ]
+    };
+  }
+  const evidenceIds = new Set(state.evidence.map(({ id }) => id));
   const proposals = parsed
-    .filter((proposal) => REGISTRY[proposal.tool] !== undefined)
+    .filter(
+      (proposal) =>
+        REGISTRY[proposal.tool] !== undefined &&
+        !deniedKeys.has(`${proposal.tool}:${stable(proposal.args)}`) &&
+        proposal.evidence.every((id) => evidenceIds.has(id))
+    )
     .slice(0, LIMITS.ACTIONS_MAX);
+  const actionIds = new Set(state.actions.map(({ id }) => id));
+  let nextActionNumber = 1;
   const actions = proposals.map((proposal, index) => {
     const policy = REGISTRY[proposal.tool]!;
     const digest = createHash("sha256")
       .update(stable(proposal.args))
       .digest("hex")
       .slice(0, 12);
+    while (actionIds.has(`act-${nextActionNumber}`)) nextActionNumber += 1;
+    const id = `act-${nextActionNumber}`;
+    actionIds.add(id);
+    nextActionNumber += 1;
     return {
       ...proposal,
-      id: proposal.id ?? `act-${state.actions.length + index + 1}`,
+      id,
       rank: index + 1,
       kind: policy.kind as "safe" | "destructive",
       idempotencyKey: `${state.runId}:${proposal.tool}:${digest}`,
