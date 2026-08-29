@@ -97,3 +97,38 @@ def test_values_are_fixed_point_not_scientific():
         value = ln.split()[1]
         assert "e" not in value.lower()
         assert value.count(".") == 1
+
+
+def test_label_values_are_escaped():
+    """One unescaped quote in a node id breaks the whole scrape, not just its series."""
+    body = _client('bad"id').get("/metrics").text
+    assert 'hush_cpu_temp_celsius{system="bad\\"id"} ' in body
+    assert 'hush_cpu_temp_celsius{system="bad"id"}' not in body
+
+
+def test_backslash_and_newline_in_node_id_are_escaped():
+    body = _client("back\\slash", "two\nlines").get("/metrics").text
+    assert 'system="back\\\\slash"' in body
+    assert 'system="two\\nlines"' in body
+    # The newline must not survive as a real line break, or the exposition splits.
+    assert len([ln for ln in body.splitlines() if ln.startswith("hush_cpu_temp_celsius{")]) == 2
+
+
+def test_ordinary_node_ids_are_untouched():
+    body = _default_fleet_client().get("/metrics").text
+    assert 'hush_cpu_temp_celsius{system="R4-N01"}' in body
+    assert "\\" not in body
+
+
+def test_power_off_clears_hung_so_host_hung_cannot_fire_on_a_dead_box():
+    client = _client()
+    client.post("/chaos/hang", json={"system": "T1"})
+    assert 'hush_host_hung{system="T1"} 1' in client.get("/metrics").text
+
+    client.post("/chaos/psu-fail", json={"system": "T1", "psu": 1})
+    client.post("/chaos/psu-fail", json={"system": "T1", "psu": 2})
+    client.app.state.fleet.tick(1.0)
+
+    body = client.get("/metrics").text
+    assert 'hush_power_on{system="T1"} 0' in body
+    assert 'hush_host_hung{system="T1"} 0' in body
