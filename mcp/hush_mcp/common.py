@@ -12,11 +12,9 @@ import logging
 import os
 import sys
 from collections.abc import Callable
-from typing import Any, ParamSpec
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
-
-P = ParamSpec("P")
 
 #: Servers bind to loopback only; the harness reaches them from the same laptop.
 HOST = "127.0.0.1"
@@ -40,7 +38,7 @@ def env(name: str, default: str) -> str:
     return os.getenv(name, default)
 
 
-def guarded(fn: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
+def guarded[**P](fn: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
     """Log the call and turn any exception into the error envelope."""
 
     @functools.wraps(fn)
@@ -59,7 +57,7 @@ def guarded(fn: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
 _IDEMPOTENT: dict[str, dict[str, Any]] = {}
 
 
-def idempotent(fn: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
+def idempotent[**P](fn: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
     """Return the first successful result for a repeated ``idempotency_key``.
 
     A replan or an approval retry must not power-cycle a machine twice, so the

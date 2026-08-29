@@ -55,7 +55,8 @@ def _has_ended(ends_at: str) -> bool:
 
 def _matcher(expr: str) -> dict[str, Any]:
     """Parse a matcher string (`rack=R4`, `node!=R4-N01`, `pod=~web-.*`)."""
-    for op, is_regex, is_equal in (("=~", True, True), ("!~", True, False), ("!=", False, False), ("=", False, True)):
+    operators = (("=~", True, True), ("!~", True, False), ("!=", False, False), ("=", False, True))
+    for op, is_regex, is_equal in operators:
         name, sep, value = expr.partition(op)
         if sep and name:
             return {"name": name.strip(), "value": value.strip(), "isRegex": is_regex, "isEqual": is_equal}
@@ -71,7 +72,10 @@ def list_alerts(active: bool = True, filter: list[str] | None = None) -> dict[st
         active: only currently firing alerts (False also returns silenced ones).
         filter: Alertmanager matchers, e.g. ["rack=R4", "severity=critical"].
     """
-    params: list[tuple[str, str]] = [("active", "true" if active else "false"), ("silenced", "false" if active else "true")]
+    params: list[tuple[str, str | int | float | bool | None]] = [
+        ("active", active),
+        ("silenced", not active),
+    ]
     params += [("filter", f) for f in (filter or [])]
     with _client() as http:
         response = http.get("/api/v2/alerts", params=params)
@@ -112,7 +116,9 @@ def correlate_alerts(alerts: list[Alert], window_s: int = 120) -> dict[str, Any]
 
 @mcp.tool()
 @idempotent
-def silence_alerts(matchers: list[str], duration_s: int, comment: str, idempotency_key: str) -> dict[str, Any]:
+def silence_alerts(
+    matchers: list[str], duration_s: int, comment: str, idempotency_key: str
+) -> dict[str, Any]:
     """Silence every alert matching `matchers` for `duration_s` seconds.
 
     Used after a fix has been verified, so the residual storm stops paging.
