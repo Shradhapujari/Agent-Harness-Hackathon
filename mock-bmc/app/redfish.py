@@ -238,7 +238,7 @@ def build_router(fleet: Fleet) -> APIRouter:
         """All computer systems."""
         return _system_collection(fleet)
 
-    @router.get("/redfish/v1/Systems/{system_id}", response_model=None)
+    @router.get("/redfish/v1/Systems/{system_id}", response_model=JsonDict)
     def get_system(system_id: str) -> JsonReply:
         """One computer system."""
         m = fleet.machines.get(system_id)
@@ -246,7 +246,7 @@ def build_router(fleet: Fleet) -> APIRouter:
             return _not_found(f"System {system_id} not found")
         return _computer_system(m, fleet.health(m))
 
-    @router.post("/redfish/v1/Systems/{system_id}/Actions/ComputerSystem.Reset", response_model=None)
+    @router.post("/redfish/v1/Systems/{system_id}/Actions/ComputerSystem.Reset", response_model=JsonDict)
     def reset_system(system_id: str, body: JsonDict) -> JsonReply:
         """Apply a reset action to one system."""
         if system_id not in fleet.machines:
@@ -285,7 +285,7 @@ def build_router(fleet: Fleet) -> APIRouter:
         """All chassis."""
         return _chassis_collection(fleet)
 
-    @router.get("/redfish/v1/Chassis/{system_id}", response_model=None)
+    @router.get("/redfish/v1/Chassis/{system_id}", response_model=JsonDict)
     def get_chassis(system_id: str) -> JsonReply:
         """One chassis."""
         m = fleet.machines.get(system_id)
@@ -293,7 +293,7 @@ def build_router(fleet: Fleet) -> APIRouter:
             return _not_found(f"Chassis {system_id} not found")
         return _chassis(m, fleet.health(m))
 
-    @router.get("/redfish/v1/Chassis/{system_id}/Thermal", response_model=None)
+    @router.get("/redfish/v1/Chassis/{system_id}/Thermal", response_model=JsonDict)
     def get_thermal(system_id: str) -> JsonReply:
         """Thermal sensors for one chassis."""
         m = fleet.machines.get(system_id)
@@ -301,7 +301,7 @@ def build_router(fleet: Fleet) -> APIRouter:
             return _not_found(f"Chassis {system_id} not found")
         return _thermal(m)
 
-    @router.get("/redfish/v1/Chassis/{system_id}/Power", response_model=None)
+    @router.get("/redfish/v1/Chassis/{system_id}/Power", response_model=JsonDict)
     def get_power(system_id: str) -> JsonReply:
         """Power sensors for one chassis."""
         m = fleet.machines.get(system_id)
@@ -309,14 +309,14 @@ def build_router(fleet: Fleet) -> APIRouter:
             return _not_found(f"Chassis {system_id} not found")
         return _power(m)
 
-    @router.get("/redfish/v1/Systems/{system_id}/LogServices/SEL", response_model=None)
+    @router.get("/redfish/v1/Systems/{system_id}/LogServices/SEL", response_model=JsonDict)
     def get_sel(system_id: str) -> JsonReply:
         """SEL log service for one system."""
         if system_id not in fleet.machines:
             return _not_found(f"System {system_id} not found")
         return _log_service(system_id)
 
-    @router.get("/redfish/v1/Systems/{system_id}/LogServices/SEL/Entries", response_model=None)
+    @router.get("/redfish/v1/Systems/{system_id}/LogServices/SEL/Entries", response_model=JsonDict)
     def list_sel_entries(system_id: str) -> JsonReply:
         """All SEL entries for one system, newest last."""
         m = fleet.machines.get(system_id)
@@ -331,7 +331,7 @@ def build_router(fleet: Fleet) -> APIRouter:
             "Members@odata.count": len(entries),
         }
 
-    @router.get("/redfish/v1/Systems/{system_id}/LogServices/SEL/Entries/{entry_id}", response_model=None)
+    @router.get("/redfish/v1/Systems/{system_id}/LogServices/SEL/Entries/{entry_id}", response_model=JsonDict)
     def get_sel_entry(system_id: str, entry_id: str) -> JsonReply:
         """One SEL entry by numeric id."""
         m = fleet.machines.get(system_id)
