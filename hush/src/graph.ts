@@ -1,4 +1,6 @@
 import type { RunState } from "./state.js";
+import type { Action, Evidence } from "./state.js";
+import type { PendingApproval } from "./trueforge.js";
 
 export type NodeId = RunState["node"];
 
@@ -7,11 +9,35 @@ export interface Harness {
 }
 
 export interface ApprovalBridge {
-  readonly [key: string]: unknown;
+  decide?(request: {
+    runId: string;
+    sessionId: string;
+    action: Action;
+    incident: RunState["incident"];
+    evidence: Evidence[];
+    pending: PendingApproval;
+    timeoutS: number;
+  }): Promise<{
+    allow: boolean;
+    by: string;
+    at: string;
+    reason?: string;
+  }>;
 }
 
+export type ProbeSnapshot = {
+  nodes: Array<{
+    systemId: string;
+    power: string;
+    hung: boolean;
+    cpuTempC: number;
+  }>;
+  readyNodes: string[];
+  firingAlerts: string[];
+};
+
 export interface Probes {
-  readonly [key: string]: unknown;
+  snapshot?(state: RunState, signal?: AbortSignal): Promise<ProbeSnapshot>;
 }
 
 export type NodeFn = (
@@ -28,6 +54,10 @@ export interface Ctx {
   log: (nodeId: NodeId, event: string, detail?: unknown) => void;
   loadPrompt?: (name: string) => Promise<string>;
   signal?: AbortSignal;
+  sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
+  writeReport?: (state: RunState, markdown: string) => Promise<void>;
+  readEvents?: (state: RunState) => Promise<unknown[]>;
+  page?: (message: string) => void;
 }
 
 export const LIMITS = {

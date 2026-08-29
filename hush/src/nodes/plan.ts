@@ -40,7 +40,14 @@ export const plan: NodeFn = async (state, context) => {
   if (!state.sessionId) throw new Error("N3 requires a session");
   const denied = state.actions
     .filter((action) => action.status === "denied")
-    .map(({ tool, args, reason }) => ({ tool, args, reason }));
+    .map(({ tool, args, result }) => ({
+      tool,
+      args,
+      reason:
+        result && typeof result === "object" && "denialReason" in result
+          ? String(result.denialReason)
+          : "denied"
+    }));
   const deniedKeys = new Set(
     denied.map(({ tool, args }) => `${tool}:${stable(args)}`)
   );
@@ -55,7 +62,10 @@ export const plan: NodeFn = async (state, context) => {
           summary,
           source
         })),
-        denied
+        denied,
+        verification: [...state.timeline]
+          .reverse()
+          .find((item) => item.event === "verification")?.detail
       }),
       schema
     },

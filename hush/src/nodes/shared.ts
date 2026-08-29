@@ -13,7 +13,7 @@ export function harnessClient(value: unknown): HarnessClient {
 }
 
 export async function render(
-  name: "triage" | "enrich" | "plan",
+  name: "triage" | "enrich" | "plan" | "exec" | "verify",
   values: Record<string, string>,
   load: (name: string) => Promise<string> = filePromptLoader
 ): Promise<string> {

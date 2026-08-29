@@ -14,7 +14,7 @@ describe("Hush CLI", () => {
       {
         command: "incident",
         scenario: "crac",
-        until: "N3"
+        until: "DONE"
       }
     ]);
   });
@@ -23,9 +23,9 @@ describe("Hush CLI", () => {
     const output: unknown[] = [];
     const program = createProgram((summary) => output.push(summary));
 
-    program.parse(["node", "hush", "resume"]);
+    program.parse(["node", "hush", "resume", "inc-20260829-abcd"]);
 
-    expect(output).toEqual([{ command: "resume" }]);
+    expect(output).toEqual([{ command: "resume", runId: "inc-20260829-abcd" }]);
   });
 
   it("rejects an unsupported incident scenario", () => {
