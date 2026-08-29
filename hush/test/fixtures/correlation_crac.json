@@ -1,0 +1,81 @@
+{
+  "clusters": [
+    {
+      "key": {
+        "rack": "R4"
+      },
+      "layer_counts": {
+        "bmc": 20,
+        "facility": 1,
+        "kubernetes": 18,
+        "app": 9
+      },
+      "first_seen": "2026-08-29T21:39:10.375Z",
+      "last_seen": "2026-08-29T21:40:20.375Z",
+      "fingerprints": [
+        "0e3cd17659082af4",
+        "7dda265c83c40468",
+        "5fc3430b471a2f48",
+        "006d3574b99eddd3",
+        "0d7b781764597c6b",
+        "2c1dd58ebd94eedd",
+        "541d99a818bc8dbd",
+        "71e12b0e2320a3cf",
+        "7d5a4c4b64e92400",
+        "86338b69ee628727",
+        "8b658a76b7fcf9d7",
+        "8da0f68713fe2c97",
+        "986bd51885476ea5",
+        "abd8c8e03d356bbd",
+        "b02fcca257ba2765",
+        "e97d6729124009e5",
+        "f78bdbf7bbf6dd13",
+        "0db0293b4a0aef00",
+        "d4dfac4548eb3200",
+        "71adb2aee8a610aa",
+        "159a6aa971357e6f",
+        "3ab091767b8bbb88",
+        "3fc176433b6561f0",
+        "445a52011396b77e",
+        "46ebd555e1936037",
+        "560947ec0259e9e0",
+        "5784163ca13012ab",
+        "6c8264bf59619a47",
+        "6d818bbfa5306ed0",
+        "76da46148d56a6e4",
+        "86d57fbe0214d126",
+        "8fc79505921c1834",
+        "90c343c6214a5f02",
+        "9b11aba952bf63d5",
+        "9dfe6df4f0abf55f",
+        "a9ca7cad01b28ebf",
+        "a9dd9e37220c2db1",
+        "affb301a8e58b017",
+        "b429d22618437a1e",
+        "c0348cca9f488cc6",
+        "c576d211d30fbf64",
+        "ccc6e899eb860c97",
+        "ce0d19d57ad3e2c3",
+        "d12b930f332df7cc",
+        "f4b58824d79bfe23",
+        "e87c0ae2b8d565da",
+        "761f98b1507e0c7c",
+        "056271979083f4e4"
+      ],
+      "leading_alert": "986bd51885476ea5"
+    },
+    {
+      "key": {
+        "rack": "R2"
+      },
+      "layer_counts": {
+        "network": 1
+      },
+      "first_seen": "2026-08-29T21:39:27.080Z",
+      "last_seen": "2026-08-29T21:39:27.080Z",
+      "fingerprints": ["ad8d78511ff31e1a"],
+      "leading_alert": "ad8d78511ff31e1a"
+    }
+  ],
+  "noise": []
+}
