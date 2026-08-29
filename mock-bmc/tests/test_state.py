@@ -120,6 +120,27 @@ def test_clear_chaos_resets_offsets_psus_hang_and_keeps_sel():
         assert len(m.sel) == sel_counts[m.system_id]
 
 
+@pytest.mark.parametrize("terminal_fault", ["thermal", "psu"])
+def test_clear_chaos_restores_chaos_terminated_machine(terminal_fault: str):
+    fleet = _fleet_one()
+    m = fleet.machines["T1"]
+    if terminal_fault == "thermal":
+        m.thermal_trip = True
+        m.power = PowerState.OFF
+    else:
+        fleet.psu_fail("T1", 1)
+        fleet.psu_fail("T1", 2)
+        fleet.tick()
+    sel_count = len(m.sel)
+
+    fleet.clear_chaos()
+
+    assert m.power == PowerState.ON
+    assert m.thermal_trip is False
+    assert m.psu_ok == {1: True, 2: True}
+    assert len(m.sel) == sel_count
+
+
 def test_sel_ids_increase_timestamps_iso_newest_last():
     fleet = _fleet_one()
     e1 = fleet.log_sel("T1", "OK", "UserNote", "first")

@@ -224,13 +224,17 @@ class Fleet:
         self.ambient_offset_c = 0.0
 
     def clear_chaos(self) -> None:
-        """Clear chaos state; real faults (thermal_trip) persist."""
+        """Clear chaos state and restore chaos-terminated machines."""
         self.ambient_offset_c = 0.0
         for m in self.machines.values():
+            chaos_terminated = m.thermal_trip or not any(m.psu_ok.values())
             m.thermal_offset_c = 0.0
             m.thermal_until = 0.0
             m.psu_ok = {1: True, 2: True}
             m.hung = False
+            m.thermal_trip = False
+            if chaos_terminated:
+                m.power = PowerState.ON
 
     def snapshot(self) -> dict[str, Any]:
         """Point-in-time fleet state for the API layer."""
