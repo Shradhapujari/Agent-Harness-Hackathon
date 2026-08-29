@@ -1,0 +1,297 @@
+[
+  {
+    "fingerprint": "f001",
+    "name": "FacilityAmbientHigh",
+    "severity": "critical",
+    "labels": {
+      "alertname": "FacilityAmbientHigh",
+      "severity": "critical",
+      "layer": "facility",
+      "rack": "R4"
+    },
+    "startsAt": "2026-08-29T12:00:00Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f003",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N02"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f004",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N03"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f005",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N04"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f006",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N05"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f007",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N06"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f008",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N07"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f009",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N08"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f010",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N09"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f011",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N10"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f012",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N11"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f013",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N12"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f014",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N13"
+    },
+    "startsAt": "2026-08-29T12:00:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f014",
+    "name": "ThermalTrip",
+    "severity": "critical",
+    "labels": {
+      "alertname": "ThermalTrip",
+      "severity": "critical",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N04"
+    },
+    "startsAt": "2026-08-29T12:00:40Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f015",
+    "name": "ThermalTrip",
+    "severity": "critical",
+    "labels": {
+      "alertname": "ThermalTrip",
+      "severity": "critical",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N07"
+    },
+    "startsAt": "2026-08-29T12:00:45Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f016",
+    "name": "KubeNodeNotReady",
+    "severity": "critical",
+    "labels": {
+      "alertname": "KubeNodeNotReady",
+      "severity": "critical",
+      "layer": "kubernetes",
+      "rack": "R4",
+      "node": "R4-N04",
+      "k8s_node": "hush-worker"
+    },
+    "startsAt": "2026-08-29T12:01:00Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f017",
+    "name": "KubePodCrashLooping",
+    "severity": "warning",
+    "labels": {
+      "alertname": "KubePodCrashLooping",
+      "severity": "warning",
+      "layer": "kubernetes",
+      "rack": "R4",
+      "namespace": "demo",
+      "pod": "web-hush-worker"
+    },
+    "startsAt": "2026-08-29T12:01:05Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f018",
+    "name": "AppErrorRateHigh",
+    "severity": "critical",
+    "labels": {
+      "alertname": "AppErrorRateHigh",
+      "severity": "critical",
+      "layer": "app",
+      "rack": "R4",
+      "tenant": "acme"
+    },
+    "startsAt": "2026-08-29T12:01:10Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f019",
+    "name": "FlappingSwitchPort",
+    "severity": "info",
+    "labels": {
+      "alertname": "FlappingSwitchPort",
+      "severity": "info",
+      "layer": "network",
+      "rack": "R2",
+      "node": "R2-SW01"
+    },
+    "startsAt": "2026-08-29T12:00:15Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f020",
+    "name": "DiskSpaceLow",
+    "severity": "warning",
+    "labels": {
+      "alertname": "DiskSpaceLow",
+      "severity": "warning",
+      "layer": "app",
+      "rack": "R4",
+      "tenant": "initech"
+    },
+    "startsAt": "2026-08-29T12:05:00Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "f021",
+    "name": "InletTempHigh",
+    "severity": "warning",
+    "labels": {
+      "alertname": "InletTempHigh",
+      "severity": "warning",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N02"
+    },
+    "startsAt": "2026-08-29T12:00:05Z",
+    "status": "resolved"
+  }
+]

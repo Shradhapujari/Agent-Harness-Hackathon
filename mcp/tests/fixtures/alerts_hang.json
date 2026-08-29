@@ -1,0 +1,101 @@
+[
+  {
+    "fingerprint": "h001",
+    "name": "HostHung",
+    "severity": "critical",
+    "labels": {
+      "alertname": "HostHung",
+      "severity": "critical",
+      "layer": "bmc",
+      "rack": "R4",
+      "node": "R4-N04"
+    },
+    "startsAt": "2026-08-29T12:00:00Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "h002",
+    "name": "KubeNodeNotReady",
+    "severity": "critical",
+    "labels": {
+      "alertname": "KubeNodeNotReady",
+      "severity": "critical",
+      "layer": "kubernetes",
+      "rack": "R4",
+      "node": "R4-N04",
+      "k8s_node": "hush-worker"
+    },
+    "startsAt": "2026-08-29T12:00:40Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "h003",
+    "name": "KubeNodeUnreachable",
+    "severity": "warning",
+    "labels": {
+      "alertname": "KubeNodeUnreachable",
+      "severity": "warning",
+      "layer": "kubernetes",
+      "rack": "R4",
+      "node": "R4-N04",
+      "k8s_node": "hush-worker"
+    },
+    "startsAt": "2026-08-29T12:00:45Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "h004",
+    "name": "KubePodPending",
+    "severity": "warning",
+    "labels": {
+      "alertname": "KubePodPending",
+      "severity": "warning",
+      "layer": "kubernetes",
+      "rack": "R4",
+      "namespace": "demo",
+      "pod": "api-hush-worker"
+    },
+    "startsAt": "2026-08-29T12:00:50Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "h005",
+    "name": "AppErrorRateHigh",
+    "severity": "critical",
+    "labels": {
+      "alertname": "AppErrorRateHigh",
+      "severity": "critical",
+      "layer": "app",
+      "rack": "R4",
+      "tenant": "globex"
+    },
+    "startsAt": "2026-08-29T12:01:00Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "h006",
+    "name": "AppLatencyP99High",
+    "severity": "warning",
+    "labels": {
+      "alertname": "AppLatencyP99High",
+      "severity": "warning",
+      "layer": "app",
+      "rack": "R4",
+      "tenant": "globex"
+    },
+    "startsAt": "2026-08-29T12:01:05Z",
+    "status": "firing"
+  },
+  {
+    "fingerprint": "h007",
+    "name": "NtpDriftHigh",
+    "severity": "info",
+    "labels": {
+      "alertname": "NtpDriftHigh",
+      "severity": "info",
+      "layer": "network"
+    },
+    "startsAt": "2026-08-29T12:00:20Z",
+    "status": "firing"
+  }
+]
