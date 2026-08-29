@@ -67,7 +67,12 @@ export interface Ctx {
 }
 
 export const LIMITS = {
-  STORM_MIN: 15,
+  // The smallest scenario the demo has to detect is a single hung host, which
+  // drags 8 symptom alerts behind it (chaos/hush_chaos/alerts.py); 15 was
+  // chosen against the CRAC cascade alone and made scenario B undetectable
+  // (I2). Six leaves headroom for a symptom that fails to post while staying
+  // clear of this lab's idle noise, which never reaches six inside WINDOW_S.
+  STORM_MIN: 6,
   WINDOW_S: 120,
   ACTIONS_MAX: 4,
   REPLANS_MAX: 2,

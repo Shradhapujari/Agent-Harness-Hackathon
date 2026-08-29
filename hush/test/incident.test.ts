@@ -197,6 +197,86 @@ describe("B4 resume runner", () => {
     expect(page).not.toHaveBeenCalled();
   });
 
+  it("gives a resumed run a full budget from the moment it resumes", async () => {
+    // I2 kills TrueForge during N2 and resumes afterwards. Charging the run for
+    // the time it spent stopped escalated it on the first iteration instead of
+    // continuing the incident.
+    const enrich = vi.fn<NodeFn>().mockResolvedValue({
+      evidence: [
+        evidence("redfish"),
+        evidence("netbox"),
+        evidence("kubernetes")
+      ]
+    });
+    const escalate = vi.fn<NodeFn>();
+    const resumedAt = new Date(start.getTime() + 3_600_000);
+    const deps = dependencies(
+      { N2: enrich, N3: async () => ({ actions: [action()] }), N9: escalate },
+      () => resumedAt
+    );
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "N3" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(enrich).toHaveBeenCalledOnce();
+    expect(escalate).not.toHaveBeenCalled();
+    expect(result.node).toBe("N4");
+    expect(result.outcome).toBeUndefined();
+    expect(result.timeline.map((item) => item.event)).toContain("run_resumed");
+    expect(result.runStartedAt).toBe(start.toISOString());
+  });
+
+  it("still escalates a resumed run that runs past its own budget", async () => {
+    const resumedAt = new Date(start.getTime() + 3_600_000);
+    const times = [
+      resumedAt,
+      resumedAt,
+      new Date(resumedAt.getTime() + 901_000),
+      new Date(resumedAt.getTime() + 901_000)
+    ];
+    const enrich = vi.fn<NodeFn>();
+    const deps = dependencies({ N2: enrich }, () => times.shift() ?? times[0]!);
+    const checkpoint: RunState = {
+      graphId: "hush-incident",
+      runId: "inc-20260829-abcd",
+      runStartedAt: start.toISOString(),
+      sessionId: "session-existing",
+      node: "N2",
+      alerts: [],
+      evidence: [],
+      actions: [],
+      counters: { replans: 0, parseRetries: 0, verifyAttempts: 0 },
+      timeline: []
+    };
+
+    const result = await runIncident(
+      { until: "DONE" },
+      deps.value,
+      vi.fn(),
+      checkpoint
+    );
+
+    expect(enrich).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ node: "N9", outcome: "escalated" });
+    expect(result.timeline.at(-1)?.event).toBe("run_timeout");
+  });
+
   it("does not page when the session checkpoint save finishes after timeout", async () => {
     let releaseCheckpoint!: () => void;
     let markCheckpointStarted!: () => void;

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { Ctx } from "../src/graph.js";
+import { LIMITS, type Ctx } from "../src/graph.js";
 import { enrich } from "../src/nodes/enrich.js";
 import { plan } from "../src/nodes/plan.js";
 import { triage } from "../src/nodes/triage.js";
@@ -25,27 +25,30 @@ function fenced(value: unknown): string {
 }
 
 describe("N0 watch", () => {
-  it("polls until a recent firing storm and maps Alertmanager values", async () => {
-    const raw = Array.from({ length: 15 }, (_, index) => ({
-      fingerprint: `fp-${index}`,
+  const active = (count: number, startsAt: string, prefix = "fp") =>
+    Array.from({ length: count }, (_, index) => ({
+      fingerprint: `${prefix}-${index}`,
       labels: {
         alertname: "InletTempHigh",
         severity: "warning",
         layer: "bmc",
         rack: "R4"
       },
-      startsAt: "2026-08-29T11:59:30.000Z",
+      startsAt,
       status: { state: "active", silencedBy: [], inhibitedBy: [] }
     }));
+
+  it("polls until a firing storm and maps Alertmanager values", async () => {
+    const raw = active(LIMITS.STORM_MIN, "2026-08-29T11:59:30.000Z");
     const inactive = ["suppressed", "unprocessed"].map((status, index) => ({
-      ...raw[index],
+      ...raw[index]!,
       fingerprint: `ignored-${status}`,
       status: { state: status, silencedBy: [], inhibitedBy: [] }
     }));
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(JSON.stringify([...raw.slice(0, 14), ...inactive]))
+        new Response(JSON.stringify([...raw.slice(1), ...inactive]))
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify([...raw, ...inactive]))
@@ -57,33 +60,71 @@ describe("N0 watch", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(sleep).toHaveBeenCalledWith(5_000);
     expect(patch.runId).toMatch(/^inc-20260829-[0-9a-f]{4}$/u);
-    expect(patch.alerts).toHaveLength(15);
+    expect(patch.alerts).toHaveLength(LIMITS.STORM_MIN);
     expect(patch.alerts?.every((item) => item.status === "firing")).toBe(true);
+    expect(patch.timeline?.[0]).toMatchObject({
+      event: "storm_detected",
+      detail: { firing: LIMITS.STORM_MIN, burst: LIMITS.STORM_MIN }
+    });
+  });
+
+  it("accepts a burst that started long before the poll", async () => {
+    // The cascade is posted by `hush-chaos` and the operator starts the run by
+    // hand afterwards, so a storm is routinely older than WINDOW_S when N0
+    // first sees it. Requiring the earliest alert to be recent closed the gate
+    // permanently (I2).
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify(active(LIMITS.STORM_MIN, "2026-08-29T09:00:00.000Z"))
+        )
+      );
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const patch = await createWatch(fetcher, sleep)(state(), context({}));
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
     expect(patch.timeline?.[0]).toMatchObject({ event: "storm_detected" });
   });
 
-  it("does not accept a storm when its earliest firing alert is outside the window", async () => {
-    const current = Array.from({ length: 15 }, (_, index) => ({
-      fingerprint: `fp-${index}`,
-      labels: { alertname: "HostHung", severity: "critical", layer: "bmc" },
-      startsAt:
-        index === 0 ? "2026-08-29T11:57:59.999Z" : "2026-08-29T11:59:30.000Z",
-      status: { state: "active", silencedBy: [], inhibitedBy: [] }
-    }));
-    const fresh = current.map((item) => ({
-      ...item,
-      startsAt: "2026-08-29T11:58:00.000Z"
-    }));
+  it("keeps polling while alerts are too sparse to be one burst", async () => {
+    // Alerts spread wider than WINDOW_S are a busy fleet, not a storm; a stale
+    // one left over from an earlier run must not hold the gate shut either.
+    const sparse = Array.from(
+      { length: LIMITS.STORM_MIN },
+      (_, index) =>
+        active(
+          1,
+          new Date(
+            Date.parse("2026-08-29T10:00:00.000Z") +
+              index * (LIMITS.WINDOW_S + 1) * 1000
+          ).toISOString(),
+          `sparse-${index}`
+        )[0]!
+    );
     const fetcher = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify(current)))
-      .mockResolvedValueOnce(new Response(JSON.stringify(fresh)));
+      .mockResolvedValueOnce(new Response(JSON.stringify(sparse)))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            ...sparse.slice(0, 1),
+            ...active(LIMITS.STORM_MIN, "2026-08-29T11:59:30.000Z")
+          ])
+        )
+      );
     const sleep = vi.fn().mockResolvedValue(undefined);
 
-    await createWatch(fetcher, sleep)(state(), context({}));
+    const patch = await createWatch(fetcher, sleep)(state(), context({}));
 
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(sleep).toHaveBeenCalledTimes(1);
+    expect(patch.alerts).toHaveLength(LIMITS.STORM_MIN + 1);
+    expect(patch.timeline?.[0]).toMatchObject({
+      detail: { firing: LIMITS.STORM_MIN + 1, burst: LIMITS.STORM_MIN }
+    });
   });
 });
 
@@ -395,6 +436,59 @@ describe("N3 plan", () => {
       expect.objectContaining({ id: "act-1", status: "skipped" })
     ]);
     expect(patch.timeline?.[0]?.event).toBe("plan_parse_error");
+  });
+
+  it("keeps the pending plan when a replan accepts nothing", async () => {
+    // After a denial the model tends to re-propose only the call it was just
+    // refused. Superseding anyway discarded the escalation the first plan had
+    // already staged and routed the run straight to N9 (I2).
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({
+        text: fenced({
+          actions: [
+            {
+              tool: "redfish.reset_system",
+              args: { system_id: "R4-N04", reset_type: "GracefulRestart" },
+              reason: "Retry the call the operator just refused.",
+              evidence: ["ev-kubernetes"]
+            }
+          ]
+        }),
+        events: []
+      })
+    };
+    const refused = action({
+      id: "act-1",
+      kind: "destructive",
+      tool: "redfish.reset_system",
+      args: { system_id: "R4-N04", reset_type: "GracefulRestart" },
+      status: "denied"
+    });
+    const escalation = action({
+      id: "act-2",
+      rank: 2,
+      kind: "destructive",
+      tool: "redfish.reset_system",
+      args: { system_id: "R4-N04", reset_type: "ForceRestart" },
+      status: "proposed"
+    });
+
+    const patch = await plan(
+      state({
+        sessionId: "session-1",
+        incident,
+        evidence: [evidence("kubernetes")],
+        actions: [refused, escalation]
+      }),
+      context(harness)
+    );
+
+    expect(patch.actions).toEqual([]);
+    expect(patch.timeline?.[0]).toMatchObject({
+      event: "plan_created",
+      detail: { accepted: 0, kept: 1 }
+    });
   });
 
   it("supersedes obsolete proposed actions while retaining their audit record", async () => {

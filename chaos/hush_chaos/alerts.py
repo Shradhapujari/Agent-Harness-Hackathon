@@ -102,7 +102,16 @@ def hang_symptoms(k8s_node: str, system: str, when: datetime | None = None) -> l
     return out
 
 
+#: The fields Alertmanager accepts on a POSTed alert. Anything the GET response
+#: adds — `fingerprint`, `status`, `receivers`, `updatedAt` — has to be dropped
+#: before an alert read off the bus can be posted back to it.
+POSTABLE = ("labels", "annotations", "startsAt", "generatorURL")
+
+
 def expired(alerts: list[dict[str, Any]], when: datetime | None = None) -> list[dict[str, Any]]:
     """The same alerts with `endsAt` now: re-posting these resolves them."""
     now = (when or datetime.now(UTC)).isoformat()
-    return [{**a, "endsAt": now} for a in alerts]
+    return [
+        {**{key: a[key] for key in POSTABLE if key in a}, "endsAt": now}
+        for a in alerts
+    ]

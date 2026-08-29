@@ -36,12 +36,16 @@ def test_hang_defaults_to_the_worker_node_and_its_machine(
     stub_scenarios: list[tuple[str, dict[str, Any]]],
 ) -> None:
     cli.main(["hang"])
-    assert stub_scenarios == [("hang", {"k8s_node": "hush-worker", "system": "R4-N04"})]
+    assert stub_scenarios == [
+        ("hang", {"k8s_node": "hush-worker", "system": "R4-N04", "lead_s": scenarios.HARDWARE_LEAD_S})
+    ]
 
 
 def test_hang_can_target_another_node(stub_scenarios: list[tuple[str, dict[str, Any]]]) -> None:
-    cli.main(["hang", "--node", "hush-worker2", "--system", "R4-N07"])
-    assert stub_scenarios == [("hang", {"k8s_node": "hush-worker2", "system": "R4-N07"})]
+    cli.main(["hang", "--node", "hush-worker2", "--system", "R4-N07", "--lead-s", "0"])
+    assert stub_scenarios == [
+        ("hang", {"k8s_node": "hush-worker2", "system": "R4-N07", "lead_s": 0.0})
+    ]
 
 
 def test_clear_and_status_take_no_arguments(stub_scenarios: list[tuple[str, dict[str, Any]]]) -> None:

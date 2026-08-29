@@ -82,10 +82,35 @@ export async function runIncident(
   const nodes = { ...DEFAULT_NODES, ...dependencies.nodes };
   let harness: HarnessClient | undefined;
 
+  // A resumed run gets a full budget from the moment it resumes. Measuring
+  // from `runStartedAt` instead charged the run for the time it spent stopped,
+  // so `hush resume` after a TrueForge restart escalated on its first
+  // iteration rather than continuing the incident (I2). `runStartedAt` still
+  // records when the incident began, which is what the report wants.
+  const deadlineAt =
+    (checkpoint
+      ? dependencies.clock().getTime()
+      : Date.parse(state.runStartedAt!)) +
+    LIMITS.RUN_TIMEOUT_S * 1000;
+
+  // Marks the restart in the report's timeline. It rides along on the next
+  // checkpoint the loop writes rather than forcing one of its own: an extra
+  // write here buys no durability, since the checkpoint being resumed from is
+  // already on disk.
+  if (checkpoint) {
+    state = merge(state, {
+      timeline: [
+        {
+          ts: dependencies.clock().toISOString(),
+          nodeId: state.node,
+          event: "run_resumed"
+        }
+      ]
+    });
+  }
+
   while (state.node !== "DONE") {
-    const remaining =
-      LIMITS.RUN_TIMEOUT_S * 1000 -
-      (dependencies.clock().getTime() - Date.parse(state.runStartedAt!));
+    const remaining = deadlineAt - dependencies.clock().getTime();
     const terminal = state.node === "N9" || state.node === "N10";
     if (remaining <= 0 && !terminal) {
       state = merge(state, {

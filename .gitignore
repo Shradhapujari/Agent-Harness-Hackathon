@@ -17,6 +17,7 @@ __pycache__/
 # Runtime artifacts
 runs/
 reports/*.md
+hush/reports/
 !reports/samples/
 !reports/samples/*.md
 *.sqlite

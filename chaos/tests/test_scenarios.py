@@ -120,9 +120,21 @@ def test_hang_posts_no_symptoms_when_the_node_will_not_freeze(
     assert ("/chaos/unhang", {"system": "R4-N04"}) in bmc.calls
 
 
+def test_hang_waits_for_hosthung_before_posting_symptoms(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HostHung needs a scrape plus `for: 5s`; the symptoms post instantly.
+
+    Without the lead the operator's N0 snapshot holds the Kubernetes symptoms
+    and no hardware alert, and triage has nothing to name the fault with.
+    """
+    slept: list[float] = []
+    monkeypatch.setattr(scenarios.time, "sleep", lambda s: slept.append(s))
+    scenarios.hang(FakeBmc(), FakeAm())
+    assert slept == [scenarios.HARDWARE_LEAD_S]
+
+
 def test_hang_wedges_the_machine_and_freezes_its_node() -> None:
     bmc, am = FakeBmc(), FakeAm()
-    result = scenarios.hang(bmc, am, k8s_node="hush-worker", system="R4-N04")
+    result = scenarios.hang(bmc, am, k8s_node="hush-worker", system="R4-N04", lead_s=0)
     assert bmc.calls == [("/chaos/hang", {"system": "R4-N04"})]
     assert result["paused"] is True
     assert {a["labels"]["k8s_node"] for a in am.posted[0] if "k8s_node" in a["labels"]} == {"hush-worker"}
@@ -141,19 +153,37 @@ def test_clear_powers_on_what_the_chaos_left_off() -> None:
     assert result["powered_on"] == ["R4-N04", "R4-N07"]
 
 
-def test_clear_silences_only_the_alerts_chaos_created() -> None:
-    """Alertmanager will not let a pushed alert be shortened into resolution."""
+def test_clear_resolves_and_then_silences_the_alerts_chaos_created() -> None:
+    """Resolution is what matters: a silenced alert comes back on the next run.
+
+    `expire_silences` runs on the way into every scenario, so an alert that was
+    only silenced returns carrying its original `startsAt`. The correlator then
+    anchors its burst on those stale symptoms and files the fresh hardware alert
+    as noise (I2). The silence stays as a backstop.
+    """
     stale = [
         {
             "labels": {"alertname": "KubeNodeNotReady", "origin": "hush-chaos"},
+            "annotations": {"summary": "KubeNodeNotReady on R4-N04"},
             "startsAt": "2026-08-29T12:00:00Z",
+            "endsAt": "2026-08-29T12:15:00Z",
+            "fingerprint": "abc123",
+            "status": {"state": "active"},
         }
     ]
     am = FakeAm(active=stale)
     result = scenarios.clear(FakeBmc(), am, NODES)
+    assert result["resolved_alerts"] == 1
     assert result["silenced_alerts"] == 1
     assert result["silence_id"] == "sil-1"
     assert am.silences == [([f"origin={scenarios.alerts.ORIGIN}"], scenarios.SILENCE_S)]
+
+    [posted] = am.posted
+    # Only the fields Alertmanager accepts on a POST; the read shape's extras
+    # would be rejected.
+    assert set(posted[0]) == {"labels", "annotations", "startsAt", "endsAt"}
+    assert posted[0]["endsAt"] != stale[0]["endsAt"]
+    assert posted[0]["startsAt"] == stale[0]["startsAt"]
 
 
 def test_clear_creates_no_silence_when_chaos_left_nothing_behind() -> None:

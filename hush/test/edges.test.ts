@@ -7,38 +7,62 @@ import { action, alert, evidence, incident, state } from "./helpers.js";
 
 describe("graph edges", () => {
   it("detects only a sufficiently dense storm", () => {
-    const alerts = Array.from({ length: LIMITS.STORM_MIN }, (_, index) =>
-      alert({
-        fingerprint: `fp-${index}`,
-        startsAt: `2026-08-29T12:00:${String(index).padStart(2, "0")}.000Z`
-      })
-    );
-    const observed = {
-      ts: "2026-08-29T12:01:59.000Z",
-      nodeId: "N0",
-      event: "poll"
-    };
-    expect(EDGES.N0(state({ alerts, timeline: [observed] }))).toBe("N1");
-    expect(
-      EDGES.N0(state({ alerts: alerts.slice(1), timeline: [observed] }))
-    ).toBe("N0");
+    const burst = (count: number, from = "2026-08-29T12:00:00.000Z") =>
+      Array.from({ length: count }, (_, index) =>
+        alert({
+          fingerprint: `fp-${index}`,
+          startsAt: new Date(Date.parse(from) + index * 1000).toISOString()
+        })
+      );
+    const alerts = burst(LIMITS.STORM_MIN);
+
+    expect(EDGES.N0(state({ alerts }))).toBe("N1");
+    expect(EDGES.N0(state({ alerts: alerts.slice(1) }))).toBe("N0");
+
+    // One more alert far outside the window does not make a thin storm dense.
     expect(
       EDGES.N0(
         state({
           alerts: [
-            ...alerts.slice(0, -1),
-            alert({ startsAt: "2026-08-29T12:03:00Z" })
-          ],
-          timeline: [observed]
+            ...alerts.slice(1),
+            alert({ fingerprint: "fp-late", startsAt: "2026-08-29T12:30:00Z" })
+          ]
         })
       )
     ).toBe("N0");
-    const stale = alerts.map((item, index) => ({
-      ...item,
-      startsAt: `2026-08-29T11:00:${String(index).padStart(2, "0")}.000Z`
-    }));
-    expect(EDGES.N0(state({ alerts: stale, timeline: [observed] }))).toBe("N0");
-    expect(EDGES.N0(state({ alerts }))).toBe("N0");
+
+    // Nor does spreading the same alerts past WINDOW_S.
+    const spread = alerts.map((item, index) =>
+      alert({
+        ...item,
+        startsAt: new Date(
+          Date.parse("2026-08-29T12:00:00.000Z") +
+            index * (LIMITS.WINDOW_S + 1) * 1000
+        ).toISOString()
+      })
+    );
+    expect(EDGES.N0(state({ alerts: spread }))).toBe("N0");
+
+    // A burst stays a storm however long it has been firing: the operator
+    // starts the run by hand, so the cascade is always older than the window
+    // by the time N0 first polls it.
+    expect(
+      EDGES.N0(
+        state({ alerts: burst(LIMITS.STORM_MIN, "2026-08-29T09:00:00.000Z") })
+      )
+    ).toBe("N1");
+
+    // Resolved alerts are not firing, so they cannot carry the gate.
+    expect(
+      EDGES.N0(
+        state({
+          alerts: alerts.map((item) => ({
+            ...item,
+            status: "resolved" as const
+          }))
+        })
+      )
+    ).toBe("N0");
   });
 
   it("routes triage success, retries, and exhaustion", () => {

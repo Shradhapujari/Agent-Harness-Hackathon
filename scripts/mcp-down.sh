@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop the MCP servers started by scripts/mcp-up.sh.
+# Stop the MCP servers and the Kubernetes proxy started by scripts/mcp-up.sh.
 #
 # Waits for each process to actually exit: `make down && make up` would
 # otherwise see a dying server still holding its port, skip starting a new one,
@@ -8,7 +8,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
-PORTS="9101 9102 9103 9104 9105"
+PORTS="9101 9102 9103 9104 9105 ${HUSH_KUBERNETES_PORT:-8001}"
 
 for pidfile in runs/mcp-*.pid; do
   [ -e "$pidfile" ] || continue
@@ -37,7 +37,7 @@ for port in $PORTS; do
   for pid in $(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null); do
     command_line="$(ps -o command= -p "$pid" 2>/dev/null)"
     case "$command_line" in
-      *hush-mcp*)
+      *hush-mcp*|*"kubectl"*proxy*)
         kill "$pid" 2>/dev/null && echo "  stopped a server still holding $port (pid $pid)"
         ;;
       *)

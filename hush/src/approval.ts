@@ -86,11 +86,16 @@ export function createApprovalBridge(
 ): ApprovalBridge {
   if (mode === "terminal") return new TerminalApproval();
   if (mode === "ui" && uiPoller) return new UiApproval(uiPoller);
-  if (mode === "ui") {
-    stdout.write(
-      "TrueForge UI clicks resume tools before controller checkpointing; using terminal approval mode.\n"
+  // Falling back to the terminal here used to look harmless. It is not: the
+  // operator who asked for `ui` is watching the TrueForge chat while the run
+  // blocks on a stdin prompt nobody is reading, and APPROVAL_TIMEOUT_S then
+  // denies the action on their behalf. Approval is the safety gate, so the
+  // channel it is served on is not something to substitute quietly (I2).
+  if (mode === "ui")
+    throw new Error(
+      "HUSH_APPROVAL_MODE=ui needs a UI decision poller; a TrueForge UI click " +
+        "resumes the held tool call itself, so the controller cannot gate it " +
+        "(see docs/i2-findings.md). Use HUSH_APPROVAL_MODE=terminal."
     );
-    return new TerminalApproval();
-  }
   throw new Error(`unknown HUSH_APPROVAL_MODE: ${mode}`);
 }

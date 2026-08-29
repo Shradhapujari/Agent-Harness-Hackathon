@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Start the five MCP servers in the background, one log file each.
+# Start the five MCP servers, plus the read-only Kubernetes proxy, in the
+# background, one log file each.
 #
-# The harness registers them by URL, so they have to outlive the shell that
-# started them: each runs under nohup with its pid in runs/mcp-<name>.pid, and
-# a server that is already listening is left alone.
+# The harness registers the MCP servers by URL, so they have to outlive the
+# shell that started them: each runs under nohup with its pid in
+# runs/mcp-<name>.pid, and a server that is already listening is left alone.
+#
+# `kubectl proxy` is here rather than in the MCP list because nothing registers
+# it: it is the plain Kubernetes read API that the controller polls directly in
+# N8 (graph.md §3, "D: controller polls BMC/k8s/AM"). Without it every verify
+# threw and every run escalated instead of recovering (I2).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -31,6 +37,19 @@ for entry in "${SERVERS[@]}"; do
   echo $! > "runs/mcp-$name.pid"
   echo "  $name started on $port (pid $!)"
 done
+
+KUBE_PORT="${HUSH_KUBERNETES_PORT:-8001}"
+KUBE_CONTEXT="${HUSH_KUBE_CONTEXT:-kind-hush}"
+if listening "$KUBE_PORT"; then
+  echo "  kubernetes proxy already listening on $KUBE_PORT"
+elif ! command -v kubectl >/dev/null 2>&1; then
+  echo "  kubectl not found; N8 verification will have no Kubernetes probe" >&2
+else
+  nohup kubectl --context "$KUBE_CONTEXT" proxy --port="$KUBE_PORT" \
+    > "runs/mcp-kube-proxy.log" 2>&1 &
+  echo $! > "runs/mcp-kube-proxy.pid"
+  echo "  kubernetes proxy started on $KUBE_PORT (pid $!)"
+fi
 
 # Give the last one a moment to bind so `make up && make smoke` does not race.
 for entry in "${SERVERS[@]}"; do

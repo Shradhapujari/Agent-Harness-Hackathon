@@ -20,7 +20,8 @@ turn in the incident's persistent session; the harness makes every tool call),
 
 ```
                  ┌──────────────┐
-   Alertmanager  │ N0 watch (D) │  storm detector: ≥ STORM_MIN firing alerts in WINDOW_S
+   Alertmanager  │ N0 watch (D) │  storm detector: ≥ STORM_MIN firing alerts whose
+                 │              │  startsAt fall inside one WINDOW_S span
                  └──────┬───────┘
                         │ storm=true
                  ┌──────▼───────┐
@@ -149,7 +150,7 @@ Each node: responsibility · reads · writes · tools allowed · limits · succe
 
 | Node | Kind | Reads | Writes | Tools / model | Limits | Success evidence |
 |---|---|---|---|---|---|---|
-| N0 watch | D | Alertmanager `/api/v2/alerts` (controller HTTP) | `alerts`, `runId`, `timeline` | none | poll 5 s; STORM_MIN=15 firing in WINDOW_S=120 | `alerts.length ≥ STORM_MIN` |
+| N0 watch | D | Alertmanager `/api/v2/alerts` (controller HTTP) | `alerts`, `runId`, `timeline` | none | poll 5 s; STORM_MIN=6 firing inside one WINDOW_S=120 span | largest burst `≥ STORM_MIN` |
 | N1 triage | A | `alerts` (fingerprint, name, severity, labels, startsAt) | `sessionId`, `incident` | `alertmanager.*`, `correlate.correlate_alerts` | 1 turn; JSON parse retry ≤ 2 | `Incident` schema valid, `primary.length ≥ 1` |
 | N2 enrich | A + S | `incident` | `evidence[]` | subagents each get **one** server: S1 `redfish.*`, S2 `netbox.*`, S3 `kubernetes.get_*` + `prometheus.*` (+ optional S4 `brightdata.*`) | 1 turn; ≥ 3 subagents; each ≤ 8 tool calls (instructions) | ≥ 1 evidence per layer redfish/netbox/kubernetes |
 | N3 plan | A | `incident`, `evidence` summaries, prior `actions` with `denied` reasons | `actions[]` (ranked) | no tools (reasoning only; `skills` runbook) | 1 turn; ACTIONS_MAX=4 | every action has ≥ 1 evidence ref, valid tool name from registry |
@@ -181,11 +182,19 @@ netbox → rack, site, tenants, device roles for scoped nodes, count of
 affected tenants; kubernetes+prometheus → node Ready conditions, pods on
 scoped nodes, `range` of `hush_inlet_temp_celsius` over last 10 m.
 
+The storm window slides over the alerts' own `startsAt`, not over "now".
+Anchoring it to the poll time made a storm undetectable `WINDOW_S` after it
+began — the operator starts the run by hand after `hush-chaos`, so the cascade
+is already stale on the first poll — and let a single alert left over from an
+earlier run hold the gate shut. `STORM_MIN` is 6 because the smallest scenario
+the demo must detect is one hung host, which carries 8 symptom alerts; 15 was
+sized against the CRAC cascade alone and made scenario B unreachable (I2).
+
 ## 4. Edges (enabling condition · decided by · on rejection)
 
 | Edge | From → To | Condition | Decided by | On rejection / failure |
 |---|---|---|---|---|
-| E0 | N0 → N1 | `firing ≥ STORM_MIN` within `WINDOW_S` | code | keep polling; log every 30 s |
+| E0 | N0 → N1 | largest set of firing alerts whose `startsAt` span ≤ `WINDOW_S` has `≥ STORM_MIN` members | code | keep polling; log every 30 s |
 | E1a | N1 → N2 | `Incident` parses and `primary.length ≥ 1` | code (zod) | — |
 | E1b | N1 → N1 | parse error, `parseRetries < 2` | code | append error to next message |
 | E1c | N1 → N9 | parse error, retries exhausted | code | escalate with raw alerts |
