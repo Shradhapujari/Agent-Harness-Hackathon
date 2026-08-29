@@ -125,8 +125,8 @@ def test_clear_chaos_restores_chaos_terminated_machine(terminal_fault: str):
     fleet = _fleet_one()
     m = fleet.machines["T1"]
     if terminal_fault == "thermal":
-        m.thermal_trip = True
-        m.power = PowerState.OFF
+        m.cpu_temp_c = 98.0
+        fleet.tick(0.0)
     else:
         fleet.psu_fail("T1", 1)
         fleet.psu_fail("T1", 2)
@@ -139,6 +139,20 @@ def test_clear_chaos_restores_chaos_terminated_machine(terminal_fault: str):
     assert m.thermal_trip is False
     assert m.psu_ok == {1: True, 2: True}
     assert len(m.sel) == sel_count
+
+
+def test_clear_chaos_preserves_administrative_power_off():
+    fleet = _fleet_one()
+    m = fleet.machines["T1"]
+    fleet.reset("T1", "ForceOff")
+    fleet.psu_fail("T1", 1)
+    fleet.psu_fail("T1", 2)
+    fleet.tick()
+
+    fleet.clear_chaos()
+
+    assert m.power == PowerState.OFF
+    assert m.psu_ok == {1: True, 2: True}
 
 
 def test_sel_ids_increase_timestamps_iso_newest_last():
