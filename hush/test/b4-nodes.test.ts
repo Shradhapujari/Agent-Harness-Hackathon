@@ -103,6 +103,50 @@ describe("B4 route and execute", () => {
     );
     expect(executed.actions?.[0].status).toBe("executed");
   });
+
+  it("sends the approved rationale as the reset_system reason", async () => {
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({
+        text: "",
+        events: [],
+        pendingApproval: {
+          threadId: "thread-1",
+          toolCallId: "call-1",
+          tool: "redfish.reset_system",
+          args: {}
+        }
+      }),
+      approve: vi.fn().mockResolvedValue({ text: "", events: [] })
+    };
+    const destructive = action({
+      kind: "destructive",
+      tool: "redfish.reset_system",
+      args: { system_id: "R4-N04", reset_type: "ForceRestart" },
+      reason: "the kernel is hung and a graceful restart was denied"
+    });
+    await requestApproval(
+      state({
+        sessionId: "session-1",
+        pendingActionId: destructive.id,
+        actions: [destructive],
+        evidence: [evidence("redfish")]
+      }),
+      context(harness, {
+        decide: vi.fn().mockResolvedValue({
+          allow: false,
+          by: "human:test",
+          at: now.toISOString(),
+          reason: "not now"
+        })
+      })
+    );
+    // The tool rejects a call without `reason`, and the gate has already been
+    // shown to a human by then, so the argument has to be there on the way in.
+    expect(harness.turn.mock.calls[0]?.[1]).toContain(
+      '"reason":"the kernel is hung and a graceful restart was denied"'
+    );
+  });
 });
 
 describe("B4 verification and report", () => {
@@ -171,5 +215,36 @@ describe("B4 verification and report", () => {
     expect(markdown).toContain("## Actions");
     expect(markdown).toContain("## Harness trace");
     expect(markdown).toContain("outcome: recovered");
+  });
+
+  it("records the verdict and the approved rationale, not [object Object]", () => {
+    const markdown = reportMarkdown(
+      state({
+        incident,
+        outcome: "recovered",
+        sessionId: "session-1",
+        alerts: [alert()],
+        evidence: [evidence("redfish")],
+        actions: [
+          action({
+            status: "executed",
+            reason: "Recover the confirmed hung host."
+          })
+        ],
+        timeline: [
+          {
+            ts: now.toISOString(),
+            nodeId: "N8",
+            event: "verification",
+            detail: { recovered: true, modelSummary: "BMC agrees." }
+          }
+        ]
+      })
+    );
+    expect(markdown).not.toContain("[object Object]");
+    expect(markdown).toContain('"recovered": true');
+    // The rationale the controller injects into redfish.reset_system lives in
+    // `reason`, not in `args`, so the report has to render it.
+    expect(markdown).toContain("Recover the confirmed hung host.");
   });
 });

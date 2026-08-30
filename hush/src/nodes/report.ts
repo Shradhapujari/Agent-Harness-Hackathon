@@ -1,6 +1,13 @@
 import type { NodeFn } from "../graph.js";
 import { timeline } from "./shared.js";
 
+const detail = (value: unknown) =>
+  value === undefined
+    ? "not completed"
+    : typeof value === "string"
+      ? value
+      : `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+
 const cell = (value: unknown) =>
   String(value ?? "")
     .replaceAll("|", "\\|")
@@ -50,11 +57,14 @@ export function reportMarkdown(
     "",
     "## Actions",
     "",
-    "| rank | tool | args | kind | status | decidedBy | decidedAt |",
-    "|---:|---|---|---|---|---|---|",
+    // `reason` is a column of its own because it is not always in `args`: for
+    // redfish.reset_system the controller injects it at call time from this
+    // field, so this is the rationale the BMC recorded and the operator saw.
+    "| rank | tool | args | reason | kind | status | decidedBy | decidedAt |",
+    "|---:|---|---|---|---|---|---|---|",
     ...state.actions.map(
       (action) =>
-        `| ${action.rank} | ${cell(action.tool)} | ${cell(JSON.stringify(action.args))} | ${action.kind} | ${action.status} | ${cell(action.decidedBy)} | ${cell(action.decidedAt)} |`
+        `| ${action.rank} | ${cell(action.tool)} | ${cell(JSON.stringify(action.args))} | ${cell(action.reason)} | ${action.kind} | ${action.status} | ${cell(action.decidedBy)} | ${cell(action.decidedAt)} |`
     ),
     "",
     "## Harness trace",
@@ -65,11 +75,13 @@ export function reportMarkdown(
     "",
     "## Verification",
     "",
-    cell(
+    // The detail is an object; `cell` stringifies, and String({}) is
+    // "[object Object]" — the audit section of every report so far said exactly
+    // that instead of the verdict it exists to record (I3).
+    detail(
       [...state.timeline]
         .reverse()
-        .find((item) => item.event === "verification")?.detail ??
-        "not completed"
+        .find((item) => item.event === "verification")?.detail
     ),
     ""
   ];

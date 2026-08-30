@@ -58,12 +58,22 @@ check_http prometheus   "$PROM_URL/-/ready"
 check_http alertmanager "$AM_URL/-/ready"
 
 # NetBox is optional: every NetBox tool falls back to infra/netbox/seed.json.
+# A port that answers with something that is not NetBox is a different thing
+# from a NetBox that is not up yet, and it is the one an operator has to act on:
+# some other local service holds the port, so the blast radius in the approval
+# gate quietly comes from the seed file (I3). curl reports 000 when nothing is
+# listening at all.
 netbox_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$NETBOX_URL/api/status/")"
-if [ "$netbox_code" = "200" ] || [ "$netbox_code" = "403" ]; then
-  printf '%-14s %-34s ok (%s)\n' netbox "$NETBOX_URL/api/status/" "$netbox_code"
-else
-  printf '%-14s %-34s skipped (fallback to seed.json)\n' netbox "$NETBOX_URL/api/status/"
-fi
+case "$netbox_code" in
+  200|403)
+    printf '%-14s %-34s ok (%s)\n' netbox "$NETBOX_URL/api/status/" "$netbox_code" ;;
+  000)
+    printf '%-14s %-34s skipped (not up; fallback to seed.json)\n' \
+      netbox "$NETBOX_URL/api/status/" ;;
+  *)
+    printf '%-14s %-34s WARN (%s: port held by another service; fallback to seed.json — move HUSH_NETBOX_PORT)\n' \
+      netbox "$NETBOX_URL/api/status/" "$netbox_code" ;;
+esac
 
 # N8 polls this directly, so a stack that passes everything else and misses
 # this one still escalates every run instead of recovering (I2).

@@ -30,13 +30,26 @@ HARDWARE_LEAD_S = 20.0
 #: scenario expires it on the way in.
 SILENCE_S = (alerts.TTL_MINUTES + 1) * 60
 SILENCE_AUTHOR = "hush-chaos"
+#: Silences to end before a scenario starts. The agent silences the residual
+#: storm through `alertmanager.silence_alerts` (`createdBy: hush`) as its last
+#: safe action, for 15 minutes; a second demo take inside that window posted its
+#: alerts straight into that silence, so N0 saw no storm and the run stalled
+#: before triage (I3). A take is only reproducible if both authors are cleared.
+SILENCE_AUTHORS = (SILENCE_AUTHOR, "hush")
+
+
+def _clear_silences(am: AmClient) -> list[str]:
+    ended: list[str] = []
+    for author in SILENCE_AUTHORS:
+        ended.extend(am.expire_silences(author))
+    return ended
 
 
 def crac(
     bmc: BmcClient, am: AmClient, k8s_nodes: dict[str, str], lead_s: float = HARDWARE_LEAD_S
 ) -> dict[str, Any]:
     """Scenario A: the CRAC unit fails and the whole rack overheats."""
-    am.expire_silences(SILENCE_AUTHOR)
+    _clear_silences(am)
     bmc.post("/chaos/crac-failure", {"delta_c": CRAC_DELTA_C})
     for system in SPIKE_SYSTEMS:
         bmc.post("/chaos/thermal-spike", {
@@ -70,7 +83,7 @@ def hang(
         raise ValueError(f"{k8s_node} is not a node in this cluster: {', '.join(sorted(nodes))}")
     if nodes[k8s_node] != system:
         raise ValueError(f"{k8s_node} runs on {nodes[k8s_node]}, not {system}")
-    am.expire_silences(SILENCE_AUTHOR)
+    _clear_silences(am)
     bmc.post("/chaos/hang", {"system": system})
     if not cluster.pause(k8s_node):
         # Posting NotReady symptoms for a node that is still healthy would
@@ -92,6 +105,7 @@ def clear(bmc: BmcClient, am: AmClient, k8s_nodes: dict[str, str]) -> dict[str, 
     powered off is switched back on through Redfish, the same way an operator
     would.
     """
+    _clear_silences(am)
     bmc.post("/chaos/clear", {})
     recovered = []
     for node in bmc.status().get("nodes", []):

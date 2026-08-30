@@ -75,19 +75,23 @@ See [the locked technology choices](specs/tech-stack.md) and
 | `hush/`                 | TrueForge controller, graph runner, prompts, and registration |
 | `skills/hush-triage/`   | Importable data-center triage runbook                         |
 | `docs/architecture.svg` | Incident graph used in this guide                             |
+| `docs/i2-findings.md`   | Integration checkpoint 2: hang scenario, approvals, resume    |
+| `docs/i3-findings.md`   | Integration checkpoint 3: clean-clone dress rehearsal         |
 | `mock-bmc/`             | FastAPI mock BMC with a Redfish-compatible API                |
+| `mcp/`                  | The five MCP servers the harness registers                    |
+| `chaos/`                | `hush-chaos` scenario CLI (`hang`, `crac`, `clear`)           |
+| `infra/`                | docker-compose stack, kind cluster, Prometheus rules, seeds   |
+| `scripts/`              | `mcp-up.sh`, `mcp-down.sh`, `smoke.sh`, helper scripts        |
 | `.env.example`          | Safe local configuration template; contains no credentials    |
-
-Folders described in the roadmap, including `mcp/`, `chaos/`, and `infra/`,
-will appear as their phases land. Do not assume roadmap examples are already
-implemented.
 
 ## Current status
 
-Person B phases B0 through B4 are present on `main`: the graph runner,
-TrueForge adapter, triage, parallel enrichment, planning, approval-gated
-execution, verification, and reporting are implemented. B5 adds the operator
-runbook, Generative UI guidance, and clean-clone documentation.
+The whole stack is on `main`: the simulated data center (mock BMC, Prometheus,
+Alertmanager, NetBox, a three-node kind cluster, the five MCP servers, and the
+chaos CLI) and the controller (graph runner, TrueForge adapter, triage,
+parallel enrichment, planning, approval-gated execution, verification, and
+reporting). Both demo scenarios run end to end, and the findings from each
+integration checkpoint are in [`docs/`](docs/).
 
 ## Get started as a contributor
 
@@ -113,6 +117,8 @@ Replace only the safe placeholders in `.env`. Keep
 Run the checks that are available today:
 
 ```bash
+make sync                 # uv sync --all-packages; make test type-checks nothing without it
+make test                 # ruff, mypy, and pytest across mock-bmc/, mcp/, chaos/, infra/
 cd hush
 npm ci
 npm test
@@ -120,9 +126,11 @@ npm run build
 npm run lint
 ```
 
-CI runs the same TypeScript checks, the Python test suite, and gitleaks on each
-pull request. From the repository root, `make test` runs the Python lint,
-type-check, and test suite with `uv`.
+Run `make sync` before `make test` in a fresh clone: `mypy` reads the installed
+workspace packages, and without them it reports errors that are not in the code.
+
+CI runs the same two suites — `make sync && make test` for Python, and the
+TypeScript lint, build, and test — plus gitleaks on every pull request.
 
 The mock BMC has its own setup and API examples in
 [`mock-bmc/README.md`](mock-bmc/README.md).
@@ -185,6 +193,26 @@ controller cannot gate on it. See [`docs/i2-findings.md`](docs/i2-findings.md).
 `hush-chaos clear` puts the lab back between runs — machines on, nodes thawed
 and uncordoned, synthetic alerts resolved. Run it before each demo take.
 
+### When a run does not behave
+
+Start with `make smoke`; every line below was a real dress-rehearsal failure
+(see [`docs/i3-findings.md`](docs/i3-findings.md)).
+
+- `netbox … WARN (port held by another service)`: some other local process owns
+  `:8000`, so the NetBox tools answer from `infra/netbox/seed.json` and the
+  blast radius at the approval gate is seeded rather than live. Move
+  `HUSH_NETBOX_PORT` and `HUSH_NETBOX_URL` together, or stop the other process.
+  The same applies to `:8001` (`HUSH_KUBERNETES_PORT`, polled by verification)
+  and `:8790` (TrueForge).
+- Run the stack from **one** clone. All checkouts share the same Docker Compose
+  project name, so `make up` in a second clone recreates the running containers
+  against that clone's files — and on macOS it fails outright if the clone sits
+  outside Docker Desktop's shared paths, leaving the stack down.
+- `Sandbox initialization failed … git ls-remote` in `runs/trueforge.log` means
+  TrueForge could not install the `hush-triage` skill into its sandbox. The
+  incident graph still runs — it reaches its tools over MCP, not the sandbox —
+  but sandbox code execution is unavailable until a sandbox provider is
+  configured.
 ## Local incident console
 
 The Hush console puts the complete demo flow on one local page: service

@@ -98,7 +98,16 @@ def hang_symptoms(k8s_node: str, system: str, when: datetime | None = None) -> l
             )
         )
     for tenant in TENANTS[:2]:
-        out.append(alert("AppErrorRateHigh", "critical", "app", when, tenant=tenant))
+        # Scoped to the wedged machine, because that is where these tenants'
+        # pods were running. Without `node` the app alerts are the only storm
+        # members a node-scoped silence cannot match, so they stay firing after
+        # the host recovers and N8 can never call the incident resolved (I3).
+        out.append(
+            alert(
+                "AppErrorRateHigh", "critical", "app", when,
+                tenant=tenant, node=system, k8s_node=k8s_node,
+            )
+        )
     return out
 
 

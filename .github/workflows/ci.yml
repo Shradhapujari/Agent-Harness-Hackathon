@@ -11,15 +11,14 @@ permissions:
 jobs:
   python:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mock-bmc
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv python install 3.12
-      - run: uv sync --extra dev
-      - run: uv run pytest -q
+      # The workspace, not mock-bmc alone: mcp/, chaos/ and infra/ carry more
+      # than half the Python tests and none of them ran in CI before (I3).
+      - run: make sync
+      - run: make test
 
   node:
     runs-on: ubuntu-latest

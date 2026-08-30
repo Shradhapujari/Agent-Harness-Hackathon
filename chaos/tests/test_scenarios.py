@@ -94,7 +94,9 @@ def test_a_scenario_clears_the_silence_the_last_clear_left(monkeypatch: pytest.M
     am = FakeAm()
     scenarios.crac(FakeBmc(), am, NODES)
     scenarios.hang(FakeBmc(), am)
-    assert am.expired_authors == [scenarios.SILENCE_AUTHOR, scenarios.SILENCE_AUTHOR]
+    # Both authors, both times: the agent's own silence (createdBy "hush")
+    # outlives a take and would swallow the next one's storm (I3).
+    assert am.expired_authors == [*scenarios.SILENCE_AUTHORS, *scenarios.SILENCE_AUTHORS]
 
 
 def test_hang_refuses_a_node_the_cluster_does_not_have() -> None:
