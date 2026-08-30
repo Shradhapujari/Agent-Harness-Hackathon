@@ -185,6 +185,28 @@ controller cannot gate on it. See [`docs/i2-findings.md`](docs/i2-findings.md).
 `hush-chaos clear` puts the lab back between runs — machines on, nodes thawed
 and uncordoned, synthetic alerts resolved. Run it before each demo take.
 
+## Local incident console
+
+The Hush console puts the complete demo flow on one local page: service
+readiness, chaos injection, graph progress, evidence, actions, and the human
+checkpoint. Start the stack, TrueForge, and the registered Hush agent first,
+then run:
+
+```bash
+cd hush
+npm run ui
+```
+
+Open `http://127.0.0.1:4173`. Choose the hung-host or cooling-failure scenario
+and select **Trigger alarm**. The console calls the documented mock-BMC chaos
+endpoint and starts the existing incident runner; do not also run
+`hush-chaos` or `npm run incident` for the same take.
+
+Manual CLI incidents continue to use terminal approval. Incidents started by
+the console use the local `web` approval bridge: the exact pending action is
+written under the ignored `runs/<run-id>/` directory, and the browser can
+approve or deny only that action. A denial requires a note so Hush can replan.
+
 ## Working agreements
 
 - Read the relevant spec before changing code; `AGENTS.md` contains the full
