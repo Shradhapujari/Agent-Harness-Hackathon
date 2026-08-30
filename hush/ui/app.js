@@ -15,6 +15,7 @@ const nodeOrder = Object.fromEntries(graph.map(([id], index) => [id, index]));
 const $ = (id) => document.getElementById(id);
 let lastStatus;
 let activeApprovalId;
+let activeApprovalRunId;
 let toastTimer;
 
 function node(tag, className, text) {
@@ -165,11 +166,13 @@ function renderApproval(approval) {
   const drawer = $("approval-drawer");
   if (!approval?.action) {
     activeApprovalId = undefined;
+    activeApprovalRunId = undefined;
     drawer.classList.remove("open");
     drawer.setAttribute("aria-hidden", "true");
     return;
   }
   activeApprovalId = approval.action.id;
+  activeApprovalRunId = approval.runId;
   const action = approval.action;
   $("approval-title").textContent = `${action.tool} is paused`;
   $("approval-summary").textContent = action.reason;
@@ -300,7 +303,7 @@ async function triggerIncident() {
 }
 
 async function decide(allow) {
-  if (!activeApprovalId) return;
+  if (!activeApprovalId || !activeApprovalRunId) return;
   const reason = $("deny-reason").value.trim();
   if (!allow && !reason) {
     $("deny-reason").focus();
@@ -313,7 +316,12 @@ async function decide(allow) {
     const response = await fetch("/api/approval", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ actionId: activeApprovalId, allow, reason })
+      body: JSON.stringify({
+        runId: activeApprovalRunId,
+        actionId: activeApprovalId,
+        allow,
+        reason
+      })
     });
     const result = await response.json();
     if (!response.ok)
@@ -325,6 +333,7 @@ async function decide(allow) {
     );
     $("deny-reason").value = "";
     activeApprovalId = undefined;
+    activeApprovalRunId = undefined;
     await refresh();
   } catch (error) {
     showToast(

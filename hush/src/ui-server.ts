@@ -21,9 +21,11 @@ const bmcUrl = process.env.HUSH_BMC_URL ?? "http://127.0.0.1:8100";
 const alertmanagerUrl =
   process.env.HUSH_ALERTMANAGER_URL ?? "http://127.0.0.1:9093";
 const publicDirectory = fileURLToPath(new URL("../ui/", import.meta.url));
-const runsDirectory = resolve("runs");
+const runsDirectory = resolve(process.env.HUSH_RUNS_DIRECTORY ?? "runs");
 const startedAt = new Date().toISOString();
 let incidentProcess: ChildProcess | undefined;
+let incidentStarting = false;
+let incidentRunning = false;
 let processStartedAt: number | undefined;
 let processError: string | undefined;
 const output: string[] = [];
@@ -80,7 +82,7 @@ async function latestRunId(): Promise<string | undefined> {
         }))
     );
     const minimumTime =
-      incidentProcess?.exitCode === null && processStartedAt
+      (incidentStarting || incidentRunning) && processStartedAt
         ? processStartedAt - 1_000
         : 0;
     return candidates
@@ -110,7 +112,7 @@ async function status(): Promise<Json> {
     server: { ok: true, startedAt },
     services: { bmc, alertmanager },
     process: {
-      running: Boolean(incidentProcess && incidentProcess.exitCode === null),
+      running: incidentStarting || incidentRunning,
       startedAt: processStartedAt
         ? new Date(processStartedAt).toISOString()
         : undefined,
@@ -127,10 +129,7 @@ async function status(): Promise<Json> {
   };
 }
 
-function startIncident(scenario: "hang" | "crac"): void {
-  if (incidentProcess && incidentProcess.exitCode === null) {
-    throw new Error("an incident is already running");
-  }
+async function startIncident(scenario: "hang" | "crac"): Promise<void> {
   output.length = 0;
   processError = undefined;
   processStartedAt = Date.now();
@@ -149,12 +148,22 @@ function startIncident(scenario: "hang" | "crac"): void {
   };
   incidentProcess.stdout?.on("data", capture);
   incidentProcess.stderr?.on("data", capture);
-  incidentProcess.on("error", (error) => {
-    processError = error.message;
-  });
   incidentProcess.on("exit", (code) => {
+    incidentRunning = false;
     if (code && code !== 0)
       processError = `incident process exited with code ${code}`;
+  });
+  await new Promise<void>((resolveSpawn, rejectSpawn) => {
+    incidentProcess?.once("spawn", () => {
+      incidentRunning = true;
+      resolveSpawn();
+    });
+    incidentProcess?.once("error", (error) => {
+      incidentRunning = false;
+      incidentProcess = undefined;
+      processError = error.message;
+      rejectSpawn(error);
+    });
   });
 }
 
@@ -172,6 +181,35 @@ async function inject(scenario: "hang" | "crac"): Promise<unknown> {
   return response.json();
 }
 
+async function clearInjectedFault(): Promise<void> {
+  try {
+    await fetch(`${bmcUrl}/chaos/clear`, {
+      method: "POST",
+      signal: AbortSignal.timeout(4_000)
+    });
+  } catch {
+    // Preserve the original spawn error; service status tells the operator if
+    // the best-effort rollback could not reach the mock BMC.
+  }
+}
+
+function validateMutationRequest(
+  request: IncomingMessage,
+  response: ServerResponse
+): boolean {
+  const origin = request.headers.origin;
+  const expectedOrigin = `http://${request.headers.host ?? ""}`;
+  if (origin !== expectedOrigin) {
+    json(response, 403, { error: "cross-origin requests are not allowed" });
+    return false;
+  }
+  if (!request.headers["content-type"]?.startsWith("application/json")) {
+    json(response, 415, { error: "content type must be application/json" });
+    return false;
+  }
+  return true;
+}
+
 async function route(
   request: IncomingMessage,
   response: ServerResponse
@@ -185,21 +223,39 @@ async function route(
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/incidents") {
+    if (!validateMutationRequest(request, response)) return;
     const payload = await body(request);
     if (payload.scenario !== "hang" && payload.scenario !== "crac") {
       json(response, 400, { error: "scenario must be hang or crac" });
       return;
     }
-    const injection = await inject(payload.scenario);
-    startIncident(payload.scenario);
+    if (incidentStarting || incidentRunning) {
+      json(response, 409, { error: "an incident is already running" });
+      return;
+    }
+    incidentStarting = true;
+    let injection: unknown;
+    try {
+      injection = await inject(payload.scenario);
+      try {
+        await startIncident(payload.scenario);
+      } catch (error) {
+        await clearInjectedFault();
+        throw error;
+      }
+    } finally {
+      incidentStarting = false;
+    }
     json(response, 202, { ok: true, scenario: payload.scenario, injection });
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/approval") {
+    if (!validateMutationRequest(request, response)) return;
     const payload = await body(request);
-    const runId = await latestRunId();
+    const runId = payload.runId;
     if (
-      !runId ||
+      typeof runId !== "string" ||
+      !/^inc-\d{8}-[0-9a-fA-F]{4}$/.test(runId) ||
       typeof payload.actionId !== "string" ||
       typeof payload.allow !== "boolean"
     ) {
@@ -208,14 +264,20 @@ async function route(
       });
       return;
     }
-    if (payload.allow === false && typeof payload.reason !== "string") {
+    if (
+      payload.allow === false &&
+      (typeof payload.reason !== "string" || payload.reason.trim() === "")
+    ) {
       json(response, 400, { error: "a reason is required to deny an action" });
       return;
     }
     const pending = (await readJson(
       join(runsDirectory, runId, "approval-pending.json")
     )) as { action?: { id?: string } } | undefined;
-    if (pending?.action?.id !== payload.actionId) {
+    if (
+      (pending as { runId?: string } | undefined)?.runId !== runId ||
+      pending?.action?.id !== payload.actionId
+    ) {
       json(response, 409, { error: "this action is no longer pending" });
       return;
     }
