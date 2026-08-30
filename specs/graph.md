@@ -338,7 +338,7 @@ approval (I3).
     "instructions": "<contents of hush/prompts/system.md>",
     "config": {
       "iteration_limit": 60,
-      "sandbox": { "enabled": true, "file_downloads": true },
+      "sandbox": { "enabled": false },
       "ask_user_questions": { "enabled": false },
       "dynamic_sub_agents": { "enabled": true },
       "generative_ui": { "enabled": true },

@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import type { ApprovalBridge } from "./graph.js";
+import { callArgs } from "./registry.js";
 
 type Decide = NonNullable<ApprovalBridge["decide"]>;
 type Request = Parameters<Decide>[0];
@@ -102,11 +103,7 @@ export class WebApproval implements ApprovalBridge {
     );
     await mkdir(dirname(pendingPath), { recursive: true });
     await rm(decisionPath, { force: true });
-    const expectedArgs = {
-      ...request.action.args,
-      idempotency_key: request.action.idempotencyKey,
-      run_id: request.runId
-    };
+    const expectedArgs = callArgs(request.action, request.runId);
     if (
       request.pending.tool !== request.action.tool ||
       !isDeepStrictEqual(request.pending.args, expectedArgs)

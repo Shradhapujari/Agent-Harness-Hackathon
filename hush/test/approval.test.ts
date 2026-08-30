@@ -10,6 +10,7 @@ import {
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { callArgs } from "../src/registry.js";
 import { LIMITS } from "../src/graph.js";
 import { action, incident } from "./helpers.js";
 
@@ -30,14 +31,27 @@ const request = {
     threadId: "thread-1",
     toolCallId: "call-1",
     tool: "redfish.reset_system",
-    args: {
-      ...destructiveAction.args,
-      idempotency_key: destructiveAction.idempotencyKey,
-      run_id: "inc-20260829-abcd"
-    }
+    // What TrueForge actually holds: the args the graph sent, including the
+    // `reason` the registry says the controller injects (I3).
+    args: callArgs(destructiveAction, "inc-20260829-abcd")
   },
   timeoutS: LIMITS.APPROVAL_TIMEOUT_S
 };
+
+describe("the args the gate checks", () => {
+  it("matches what N6 sends, injected reason included", () => {
+    // The bridge compares the held call against the planned action. Building
+    // the two separately is what made every web-mode run die at the gate,
+    // before the operator saw a card at all (I3).
+    expect(callArgs(destructiveAction, "inc-20260829-abcd")).toEqual({
+      system_id: "R4-N04",
+      reset_type: "ForceRestart",
+      reason: destructiveAction.reason,
+      idempotency_key: destructiveAction.idempotencyKey,
+      run_id: "inc-20260829-abcd"
+    });
+  });
+});
 
 describe("approval bridge selection", () => {
   it("serves the terminal bridge by default and by name", () => {
