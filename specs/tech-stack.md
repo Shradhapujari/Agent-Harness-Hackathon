@@ -19,7 +19,7 @@ hardware is simulated.
 | Chaos | **`chaos/`** Python CLI (`hush-chaos crac|hang|clear`) | drives mock-bmc `/chaos/*`, Alertmanager `/api/v2/alerts`, `docker pause` on kind node | — | A |
 | MCP servers | **`mcp/`** Python, `mcp[cli]` FastMCP, transport `streamable-http` | one process per server | 9101–9105 | A |
 | Sandbox | **Daytona** (only provider TrueForge supports today) | API key in TrueForge Settings → Sandbox providers | — | B |
-| Skill | `skills/hush-triage/SKILL.md` imported from the public GitHub repo | needs sandbox enabled | — | B |
+| Skill | `skills/hush-triage/SKILL.md` imported from the public GitHub repo | registered always; **only reaches the prompt with the sandbox enabled** — TrueForge materialises a git skill inside the sandbox (I3) | — | B |
 | Code review | **Qodo** GitHub app on the repo; `/agentic_review` on every PR | required for submission | — | B |
 | CI | GitHub Actions: ruff, mypy, pytest (Python) · eslint, tsc, vitest (TS) | `.github/workflows/ci.yml` | — | B |
 

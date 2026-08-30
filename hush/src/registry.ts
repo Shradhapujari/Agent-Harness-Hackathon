@@ -22,3 +22,26 @@ export const REGISTRY: Readonly<Record<string, ToolPolicy>> = {
 export function toolPolicy(tool: string): ToolPolicy | undefined {
   return REGISTRY[tool];
 }
+
+// The one place a tool call's arguments are assembled. N5/N6/N7 send these, and
+// the web approval bridge checks the held call against them, so the two cannot
+// be built separately: when they were, the injected `reason` made every
+// destructive call look like a call nobody planned, and the run died at the
+// gate before the operator ever saw it (I3).
+export function callArgs(
+  action: {
+    tool: string;
+    args: Record<string, unknown>;
+    reason: string;
+    idempotencyKey: string;
+  },
+  runId: string
+): Record<string, unknown> {
+  const injects = toolPolicy(action.tool)?.injects ?? [];
+  return {
+    ...action.args,
+    ...(injects.includes("reason") ? { reason: action.reason } : {}),
+    idempotency_key: action.idempotencyKey,
+    run_id: runId
+  };
+}

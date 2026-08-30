@@ -171,29 +171,97 @@ async function startIncident(scenario: "hang" | "crac"): Promise<void> {
   });
 }
 
-async function inject(scenario: "hang" | "crac"): Promise<unknown> {
-  const path = scenario === "hang" ? "/chaos/hang" : "/chaos/crac-failure";
-  const payload = scenario === "hang" ? { system: "R4-N04" } : { delta_c: 14 };
-  const response = await fetch(`${bmcUrl}${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(4000)
+// The scenario, not just the hardware fault. Posting to the BMC's chaos
+// endpoint alone fires the hardware alert and nothing else: no paused kind
+// node, and none of the eight Kubernetes and application symptoms `hush-chaos`
+// posts to Alertmanager. N0 needs STORM_MIN alerts inside WINDOW_S, so a
+// console-triggered run sat in `watch` forever on a two-alert "storm" while the
+// same scenario from the CLI ran end to end. The console now runs exactly the
+// command the README gives an operator.
+const chaosCommand = process.env.HUSH_CHAOS_COMMAND ?? "uv";
+const chaosArguments = (process.env.HUSH_CHAOS_ARGS ?? "run,hush-chaos").split(
+  ","
+);
+const workspaceRoot = fileURLToPath(new URL("../../", import.meta.url));
+// `hush-chaos hang` waits out the hardware alert's `for:` window before it
+// posts symptoms (I2), so this is tens of seconds, not milliseconds.
+const CHAOS_TIMEOUT_MS = 120_000;
+
+async function chaos(...args: string[]): Promise<string> {
+  return new Promise<string>((resolveChaos, rejectChaos) => {
+    // Own process group: `uv` is a launcher, and a signal delivered to it alone
+    // leaves the Python underneath running — still pausing nodes and posting
+    // alerts long after the request gave up on it.
+    const child = spawn(chaosCommand, [...chaosArguments, ...args], {
+      cwd: workspaceRoot,
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      if (child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      }
+      rejectChaos(new Error(`hush-chaos ${args.join(" ")} timed out`));
+    }, CHAOS_TIMEOUT_MS);
+    child.stdout?.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+    child.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      rejectChaos(new Error(`could not run ${chaosCommand}: ${error.message}`));
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolveChaos(stdout);
+      else
+        rejectChaos(
+          new Error(
+            `hush-chaos ${args.join(" ")} failed (exit ${code ?? "signal"}): ${(
+              stderr || stdout
+            )
+              .trim()
+              .slice(-300)}`
+          )
+        );
+    });
   });
-  if (!response.ok)
-    throw new Error(`mock BMC returned HTTP ${response.status}`);
-  return response.json();
+}
+
+async function inject(scenario: "hang" | "crac"): Promise<unknown> {
+  // `clear` first, so the button is idempotent: the CLI refuses to pause a kind
+  // node that a previous take left paused, and a leftover silence swallows the
+  // next storm (I3). This is the "run it between takes" step from the README,
+  // done for the operator rather than asked of them.
+  await chaos("clear");
+  let stdout: string;
+  try {
+    stdout = await chaos(scenario);
+  } catch (error) {
+    // A scenario that fails partway has already moved the lab: `hang` hangs the
+    // machine before it pauses the node, and both scenarios post their symptoms
+    // after that. Leaving it there hands the next take a half-injected fault,
+    // so roll back before reporting why the injection failed.
+    await clearInjectedFault();
+    throw error;
+  }
+  try {
+    return JSON.parse(stdout) as unknown;
+  } catch {
+    return { scenario, output: stdout.trim().slice(-500) };
+  }
 }
 
 async function clearInjectedFault(): Promise<void> {
   try {
-    await fetch(`${bmcUrl}/chaos/clear`, {
-      method: "POST",
-      signal: AbortSignal.timeout(4_000)
-    });
+    await chaos("clear");
   } catch {
     // Preserve the original spawn error; service status tells the operator if
-    // the best-effort rollback could not reach the mock BMC.
+    // the best-effort rollback could not reach the lab.
   }
 }
 

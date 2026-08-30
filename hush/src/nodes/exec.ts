@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { LIMITS, type NodeFn } from "../graph.js";
-import { toolPolicy } from "../registry.js";
+import { callArgs } from "../registry.js";
 import type { Action } from "../state.js";
 import {
   lastJsonBlock,
@@ -27,20 +27,6 @@ type PendingResult = {
   pendingApproval: PendingApproval;
   denialReason?: string;
 };
-
-// The model proposes what to do; the controller owns the arguments that make
-// the call auditable. `reason` is required by redfish.reset_system and is not
-// in the plan's args, so a call built from the plan alone is rejected by the
-// tool after the operator has already approved it (I3).
-function callArgs(action: Action, runId: string): Record<string, unknown> {
-  const injects = toolPolicy(action.tool)?.injects ?? [];
-  return {
-    ...action.args,
-    ...(injects.includes("reason") ? { reason: action.reason } : {}),
-    idempotency_key: action.idempotencyKey,
-    run_id: runId
-  };
-}
 
 function selected(state: Parameters<NodeFn>[0]): Action {
   const action = state.actions.find(

@@ -38,7 +38,7 @@ by reading code.
 | 2 | `make test` fails in a clean clone: the README never says `make sync` | no | yes |
 | 3 | CI ran only `mock-bmc/`'s tests — no `ruff`, no `mypy`, and none of `mcp/`, `chaos/`, `infra/` | no | yes |
 | 4 | Another process on `:8000` silently downgrades the blast radius to `seed.json` | no | yes |
-| 5 | TrueForge cannot install the `hush-triage` skill into its sandbox | no — but it costs a judged capability | **no — needs a decision** |
+| 5 | TrueForge cannot install the `hush-triage` skill into its sandbox | no — but it costs a judged capability | decided: sandbox off |
 | 6 | `make up` from a second clone recreates (and can break) the running stack | no | documented |
 | 7 | README's status and repository map predate the A-side and I2 | no | yes |
 | 8 | The agent's residual-storm silence outlives the take and swallows the next one | yes | yes |
@@ -120,10 +120,23 @@ unaffected — it reaches its tools over MCP and the skill text still reaches th
 model — but sandbox code execution, one of the capabilities the hackathon
 judges, is not demonstrable while this stands.
 
-Roadmap open question 5 pre-authorises the fallback: configure a sandbox
-provider (Daytona key) before recording, or set `sandbox.enabled=false` in
-`hush/agent.json`, say so in the README, and do not claim sandbox execution in
-the video. This is the one item that needs both people in the room.
+Roadmap open question 5 pre-authorises the fallback, and that is the call:
+`sandbox.enabled` is now `false` in `hush/agent.json`, and the README says so.
+
+Measured before deciding, with one trivial turn against the registered agent:
+
+| `sandbox.enabled` | `skills` tokens in the prompt |
+|---|---|
+| `true` (provider failing) | 180 |
+| `false` | 0 |
+
+So the sandbox does not only cost sandbox execution — TrueForge materialises a
+git skill *inside* the sandbox, so turning it off takes the `hush-triage`
+runbook out of the prompt too. Registration still succeeds either way, and both
+come back the moment a Daytona key is configured. The incident graph is
+unaffected: it reaches its tools over MCP.
+
+Claim neither in the video without a provider configured.
 
 ### 6. One stack, one clone
 
@@ -234,7 +247,9 @@ NetBox alone takes 2–4 minutes to answer, and the demo does not wait for it.
 
 1. `uv run hush-chaos clear`, then `make smoke` — every line `ok`, and read the
    NetBox line rather than skimming it.
-2. Decide finding 5, and edit `hush/agent.json` and the README to match.
+2. Finding 5 is decided: sandbox off, and neither sandbox execution nor the
+   skill is claimed. If a Daytona key turns up, flip `sandbox.enabled`, rerun
+   `npm run register`, and the skill returns with it.
 3. Run from the checkout the stack was brought up from.
 4. Budget two and a half minutes per take of scenario B, plus however long the
    operator spends reading the approval gate. Takes are repeatable back to back

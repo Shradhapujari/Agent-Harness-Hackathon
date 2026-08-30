@@ -144,10 +144,25 @@ npx @truefoundry/trueforge@latest
 ```
 
 Open `http://localhost:8790`, add an OpenAI API key under **Settings →
-Models**, and select `openai/gpt-5-6-luna`. Do not add a model fallback. Daytona
-is the planned sandbox provider. If the provider dialog renders empty, configure
-it over the API instead: put the key in `~/.hush-openai-key` and run
-`uv run python scripts/configure_openai.py`, which never writes it to the repo.
+Models**, and select `openai/gpt-5-6-luna`. Do not add a model fallback. If the
+provider dialog renders empty, configure it over the API instead: put the key in
+`~/.hush-openai-key` and run `uv run python scripts/configure_openai.py`, which
+never writes it to the repo.
+
+**The sandbox is off** (`config.sandbox.enabled: false` in `hush/agent.json`).
+Daytona is the only provider TrueForge supports, and without a key its sandbox
+never initialises: on this laptop every session logged `Sandbox initialization
+failed … git ls-remote`. Two consequences, both measured at I3 and neither of
+them affecting the incident graph, which reaches its tools over MCP:
+
+- no sandbox code execution, so nothing renders `evidence.png`;
+- **no `hush-triage` skill in the prompt.** TrueForge materialises a git skill
+  inside the sandbox, so with the sandbox off the skill contributes 0 prompt
+  tokens where it contributed 180 with the sandbox on. `npm run register` still
+  registers it, and it returns the moment a provider is configured.
+
+To turn it back on, set `sandbox.enabled` to `true` in `hush/agent.json`, add a
+Daytona key under **Settings → Sandbox providers**, and rerun `npm run register`.
 
 With the five local MCP servers running, register or update the connectors, the
 `hush-triage` skill and the `hush-operator` agent — the skill lives at a public
@@ -209,10 +224,10 @@ Start with `make smoke`; every line below was a real dress-rehearsal failure
   against that clone's files — and on macOS it fails outright if the clone sits
   outside Docker Desktop's shared paths, leaving the stack down.
 - `Sandbox initialization failed … git ls-remote` in `runs/trueforge.log` means
-  TrueForge could not install the `hush-triage` skill into its sandbox. The
-  incident graph still runs — it reaches its tools over MCP, not the sandbox —
-  but sandbox code execution is unavailable until a sandbox provider is
-  configured.
+  the sandbox is on with no provider behind it. The incident graph still runs —
+  it reaches its tools over MCP, not the sandbox — but the `hush-triage` skill
+  is not in the prompt either. Ship with `sandbox.enabled: false`, or configure
+  Daytona; see the TrueForge setup section above.
 ## Local incident console
 
 The Hush console puts the complete demo flow on one local page: service
@@ -229,6 +244,11 @@ Open `http://127.0.0.1:4173`. Choose the hung-host or cooling-failure scenario
 and select **Trigger alarm**. The console calls the documented mock-BMC chaos
 endpoint and starts the existing incident runner; do not also run
 `hush-chaos` or `npm run incident` for the same take.
+
+**Trigger alarm** runs `uv run hush-chaos clear` and then the scenario itself,
+so the storm the console injects is the same one the CLI injects — the eight
+Kubernetes and application symptoms included — and the button is repeatable
+between takes without a manual reset.
 
 Manual CLI incidents continue to use terminal approval. Incidents started by
 the console use the local `web` approval bridge: the exact pending action is
