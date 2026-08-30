@@ -4,71 +4,126 @@
 
 ## Visual Theme & Atmosphere
 
-Hush is a midnight incident room: dense enough for an operator, quiet enough to preserve judgment. The interface is a causal record rather than a collection of dashboard cards. Real graph state, evidence, actions, and approval data are the visual protagonists.
+Hush is a causal incident record, not a dashboard. The interface answers three
+questions in reading order: how many alarms fired, what single thing caused
+them, and what the agent did about it.
 
-The system combines the strongest applicable principles in VoltAgent's `awesome-design-md` collection: IBM Carbon's square enterprise precision, Linear's stepped dark surfaces and scarce accent, Sentry's incident narrative, and ClickHouse's insistence that real technical material replace abstract decoration. Hush does not copy any brand identity or proprietary asset.
+The system is grounded in the **Linear** `DESIGN.md` from VoltAgent's
+[`awesome-design-md`](https://github.com/voltagent/awesome-design-md)
+collection. Linear's rule is that the product UI screenshot is the protagonist
+and the marketing chrome is only a dark frame around it. Hush takes that
+literally: the live run state — alerts, graph position, evidence, actions,
+approval — is the screenshot. Panels are a frame and nothing more. Hush borrows
+the system, not the brand: no Linear wordmark, logo, or proprietary typeface.
 
 ## Color Palette & Roles
 
-- `#080b12` — canvas; the anchor surface.
-- `#10151f` — surface 1; primary working region.
-- `#171e2a` — surface 2; selected or grouped data.
-- `#242d3c` — strong hairline and pressed surface.
-- `#f4f7fb` — primary ink.
-- `#aeb8c7` — secondary ink, maintaining 4.5:1 contrast.
-- `#d8ff5f` — Hush action signal. Reserve for the primary actionable control, live focus, and the currently active graph node.
-- `#f4b44b` — warning and pending human authority.
-- `#ff6b6b` — destructive, failed, or denied state.
-- `#53d6a2` — healthy, completed, or recovered state.
+Linear's four-step surface ladder, verbatim:
 
-Do not use atmospheric gradients. Hierarchy comes from stepped surfaces, 1px rules, and typography. Action color never becomes decorative fill.
+- `#010102` — canvas. Near-black with a faint blue tint. Never `#000000`.
+- `#0f1011` — surface 1; every panel.
+- `#141516` — surface 2; rows, tiles, and chips inside a panel.
+- `#18191a` — surface 3; the selected or emphasised row.
+- `#191a1b` — surface 4; the deepest nested tag.
+- `#23252a` / `#34343a` / `#3e3e44` — hairline, strong, tertiary.
+
+Ink: `#f7f8f8` primary, `#d0d6e0` muted, `#8a8f98` subtle, `#62666d` tertiary.
+
+The single chromatic accent is **Linear lavender `#5e6ad2`** (hover `#828fff`,
+focus `#5e69d1`). It is scarce by rule, and in Hush it means exactly one thing:
+_this is the live or decisive element._ It appears on the brand mark, the
+primary button, focus rings, the currently executing graph node, the confidence
+meter, and the one alert triage named as the root cause. Nothing else.
+
+Severity and outcome hues come from Linear's **in-product** priority palette,
+which the source `DESIGN.md` documents as living inside product surfaces rather
+than on marketing chrome: `#eb5757` critical/denied/failed, `#f2994a`
+warning/degraded, `#27a644` recovered. They colour a 2–3px edge or a small
+pip — never a panel fill, and never a second accent.
+
+Every state pairs colour with text. Done, active, waiting, denied, and executed
+stay distinguishable without hue.
 
 ## Typography Rules
 
-Use IBM Plex Sans for interface and display text: weight 300 for the 42–64px page title, 400 for body, and 600 for operational emphasis. Apply slight positive tracking to body copy. Use IBM Plex Mono only for run IDs, graph nodes, tool names, arguments, and measurements.
+`SF Pro Display` with `-apple-system` and `Inter` fallbacks, matching Linear's
+documented substitute stack. Display weight 600, body 400; Linear resists 700+.
+Tracking goes negative as size grows — `-1.8px` at 56px, `-0.4px` at 22px,
+`-0.05px` at body. The eyebrow is the one positive-tracked style (`+0.4px`),
+marking it as taxonomy rather than voice.
 
-Hierarchy is functional: current incident and decision first, graph position second, evidence and history third. Labels stay sentence case rather than tracked all-caps except compact machine states such as LIVE or N6.
+A monospace face (`SF Mono` / `JetBrains Mono`) is reserved for machine values:
+run IDs, graph node IDs, fingerprints, tool names, arguments, counts, and
+durations. Never for prose.
 
 ## Component Styling
 
-- Buttons, selects, inputs, panels, and drawers have square corners.
-- The primary button is acid-lime with near-black text; secondary and destructive controls use bordered dark surfaces until pressed.
-- Inputs use a dark surface and a strong bottom rule; focus changes the rule and outline to the action signal.
-- Working regions are flat bands separated by hairlines, not floating cards.
-- Status always combines text with color. Completed, active, pending, failed, and idle must remain distinguishable without hue alone.
-- Approval is the only interruptive surface. It enters as an anchored bottom workbench, shows exact action data, and gives denial and approval equal visual clarity without equal emphasis.
+- Radius scale `4 / 6 / 8 / 12 / 16px`. Buttons and inputs at 8px, panels at
+  12px, the verdict band at 16px. Pills only for status chips.
+- Primary button is lavender with white text. Secondary and deny are
+  surface-1 with a strong hairline; deny reddens on hover only.
+- Inputs sit on surface-2 with a hairline-strong border; focus is a 2px
+  lavender ring at 50% opacity.
+- Panels are level-1 lifts: surface-1 on canvas with a 1px hairline. No
+  shadows.
+- Approval is the only interruptive surface and the only element permitted a
+  shadow, because it overlays the work and changes who holds authority.
 
 ## Layout Principles
 
-Use a 4px spacing base with 8, 12, 16, 24, 32, and 48px steps. The desktop frame is a 12-column work surface capped at 1600px. The signal field occupies eight columns and the causal relay four. Evidence and actions form two equal registers below.
+4px base with `4 / 8 / 12 / 16 / 24 / 32 / 48` steps. The shell caps at 1440px.
 
-Whitespace is compact inside live operational regions and generous between decision groups. One horizontal service rail establishes readiness before the incident surface. Avoid repeated same-size cards and avoid headline-plus-metric dashboard templates.
+Reading order is the incident's own order:
+
+1. **Verdict band** — the alarm count and the root cause, side by side, with a
+   `primary | symptom | noise` split bar underneath. The largest type on the
+   page is the alarm count, because that is the first question.
+2. **Storm (8 cols) + agent graph (4 cols)** — lanes plot every alert at its
+   real `startsAt` against its real `labels.layer`, ordered lowest layer first.
+   The graph relay lists all eleven nodes with per-node timings.
+3. **Run timeline** — every state transition the controller wrote.
+4. **Evidence and action registers** — two equal columns.
+
+The dark canvas is the whitespace. Sections separate by lifting onto surface-1,
+not by empty gutters.
 
 ## Depth & Elevation
 
-The default surface is flat. Surface changes and 1px borders establish containment. Only the human checkpoint may cast a soft upward shadow because it changes authority and overlays the work surface.
+Flat by default. Hierarchy is surface step plus 1px hairline. Only the approval
+workbench casts a shadow.
 
 ## Motion
 
-One authored moment carries the incident: the signal trace resolves from noise into a stable causal path as the graph advances. The active-node marker may pulse gently. Everything respects reduced motion; data and controls remain complete without animation.
+Motion is reserved for the one thing currently alive: the active graph node's
+marker and the harness dot pulse, and the approval drawer's slide. Meters and
+the split bar ease when their values change. Everything respects
+`prefers-reduced-motion`; no data depends on animation.
+
+**No decorative visualisation.** An earlier revision drew a hardcoded SVG
+"signal trace" that was not connected to any data. Every mark on the page must
+now be readable back to a field in `state.json`.
 
 ## Responsive Behavior
 
-- Above 1024px: signal and agent relay share an 8/4 split; evidence and action registers share a row.
-- From 672–1024px: the relay moves below the signal and renders in a compact multi-column sequence.
-- Below 672px: all regions become single-column; controls and decision buttons reach at least 48px; technical values scroll rather than shrink.
-- The approval workbench becomes a full-width, vertically scrollable sheet while preserving exact arguments and evidence.
+- Above 1024px: storm and relay split 8/4; evidence and actions share a row.
+- 768–1024px: all decks collapse to one column; the relay follows the storm.
+- Below 768px: the service rail scrolls horizontally under the brand; the
+  headline figure drops 56px → 40px; lane labels narrow; the timeline drops its
+  detail column onto a second line; controls reach 44px.
+- The approval workbench becomes a scrollable full-width sheet and never hides
+  the exact arguments or evidence IDs.
 
 ## Do
 
-- Use one accent for action and focus.
-- Show real graph nodes, evidence provenance, arguments, and state transitions.
-- Preserve square geometry, surface steps, 1px rules, and minimum 44–48px touch targets.
-- Let dense data become more compact on smaller viewports by changing topology, not font legibility.
+- Reserve lavender for the live or decisive element, and nothing else.
+- Draw only from real run state; label every mark with its source field.
+- Keep the surface ladder — don't skip levels to create emphasis.
+- Pair every colour-coded state with a word.
 
 ## Don't
 
-- Do not use glass, glow, gradients, decorative dashboards, or pill-shaped controls.
-- Do not use the action signal for body copy or passive decoration.
-- Do not hide destructive arguments or approval evidence on compact screens.
-- Do not introduce a second visual metaphor; the causal incident record owns the surface.
+- Don't use `#000000`, atmospheric gradients, glass, or spotlight cards.
+- Don't introduce a second chromatic accent on the chrome.
+- Don't pill-round buttons or inputs.
+- Don't render a chart that isn't backed by data.
+- Don't hide destructive arguments or approval evidence on compact screens.
