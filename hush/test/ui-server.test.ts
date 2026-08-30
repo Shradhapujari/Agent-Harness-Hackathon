@@ -87,11 +87,20 @@ describe("local UI server", () => {
   it("binds approval decisions to both the run and action", async () => {
     const runId = "inc-20260829-abcd";
     const actionId = "act-1";
+    const toolCallId = "call-1";
     const runDirectory = join(runsDirectory, runId);
     await mkdir(runDirectory, { recursive: true });
     await writeFile(
       join(runDirectory, "approval-pending.json"),
-      JSON.stringify({ runId, action: { id: actionId } }),
+      JSON.stringify({
+        runId,
+        action: { id: actionId },
+        pending: {
+          toolCallId,
+          tool: "redfish.reset_system",
+          args: { system_id: "R4-N04", reset_type: "ForceRestart" }
+        }
+      }),
       "utf8"
     );
 
@@ -101,6 +110,7 @@ describe("local UI server", () => {
       body: JSON.stringify({
         runId: "inc-20260829-ffff",
         actionId,
+        toolCallId,
         allow: true
       })
     });
@@ -109,13 +119,32 @@ describe("local UI server", () => {
     const current = await fetch(`${baseUrl}/api/approval`, {
       method: "POST",
       headers: { "content-type": "application/json", origin: baseUrl },
-      body: JSON.stringify({ runId, actionId, allow: true })
+      body: JSON.stringify({ runId, actionId, toolCallId, allow: true })
     });
     expect(current.status).toBe(202);
     await expect(
       readFile(join(runDirectory, "approval-decision.json"), "utf8").then(
         JSON.parse
       )
-    ).resolves.toMatchObject({ actionId, allow: true });
+    ).resolves.toMatchObject({ runId, actionId, toolCallId, allow: true });
+  });
+
+  it("rejects a blank denial reason at the server boundary", async () => {
+    const response = await fetch(`${baseUrl}/api/approval`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: baseUrl },
+      body: JSON.stringify({
+        runId: "inc-20260829-abcd",
+        actionId: "act-1",
+        toolCallId: "call-2",
+        allow: false,
+        reason: "   "
+      })
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "a reason is required to deny an action"
+    });
   });
 });

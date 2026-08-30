@@ -3,6 +3,7 @@ import { userInfo } from "node:os";
 import { stdin, stdout } from "node:process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import type { ApprovalBridge } from "./graph.js";
 
@@ -101,6 +102,17 @@ export class WebApproval implements ApprovalBridge {
     );
     await mkdir(dirname(pendingPath), { recursive: true });
     await rm(decisionPath, { force: true });
+    const expectedArgs = {
+      ...request.action.args,
+      idempotency_key: request.action.idempotencyKey,
+      run_id: request.runId
+    };
+    if (
+      request.pending.tool !== request.action.tool ||
+      !isDeepStrictEqual(request.pending.args, expectedArgs)
+    ) {
+      throw new Error("pending approval does not match planned action");
+    }
     await writeFile(
       pendingPath,
       `${JSON.stringify(
@@ -108,6 +120,7 @@ export class WebApproval implements ApprovalBridge {
           runId: request.runId,
           sessionId: request.sessionId,
           action: request.action,
+          pending: request.pending,
           incident: request.incident,
           evidence: request.evidence,
           requestedAt: new Date().toISOString()
@@ -123,9 +136,19 @@ export class WebApproval implements ApprovalBridge {
         try {
           const raw = JSON.parse(
             await readFile(decisionPath, "utf8")
-          ) as Partial<Decision> & { actionId?: string };
+          ) as Partial<Decision> & {
+            runId?: string;
+            actionId?: string;
+            toolCallId?: string;
+            tool?: string;
+            args?: unknown;
+          };
           if (
             raw.actionId !== request.action.id ||
+            raw.runId !== request.runId ||
+            raw.toolCallId !== request.pending.toolCallId ||
+            raw.tool !== request.pending.tool ||
+            !isDeepStrictEqual(raw.args, request.pending.args) ||
             typeof raw.allow !== "boolean"
           ) {
             throw new Error("approval decision does not match pending action");

@@ -13,20 +13,28 @@ import { join } from "node:path";
 import { LIMITS } from "../src/graph.js";
 import { action, incident } from "./helpers.js";
 
+const destructiveAction = action({
+  kind: "destructive" as const,
+  tool: "redfish.reset_system",
+  args: { system_id: "R4-N04", reset_type: "ForceRestart" },
+  idempotencyKey: "inc-20260829-abcd:redfish.reset_system:1"
+});
+
 const request = {
   runId: "inc-20260829-abcd",
   sessionId: "session-1",
-  action: action({
-    kind: "destructive" as const,
-    tool: "redfish.reset_system"
-  }),
+  action: destructiveAction,
   incident,
   evidence: [],
   pending: {
     threadId: "thread-1",
     toolCallId: "call-1",
     tool: "redfish.reset_system",
-    args: {}
+    args: {
+      ...destructiveAction.args,
+      idempotency_key: destructiveAction.idempotencyKey,
+      run_id: "inc-20260829-abcd"
+    }
   },
   timeoutS: LIMITS.APPROVAL_TIMEOUT_S
 };
@@ -109,7 +117,14 @@ describe("local web approval", () => {
     expect(pending?.action?.id).toBe(request.action.id);
     await writeFile(
       join(directory, request.runId, "approval-decision.json"),
-      JSON.stringify({ actionId: request.action.id, allow: true }),
+      JSON.stringify({
+        runId: request.runId,
+        actionId: request.action.id,
+        toolCallId: request.pending.toolCallId,
+        tool: request.pending.tool,
+        args: request.pending.args,
+        allow: true
+      }),
       "utf8"
     );
 
@@ -117,6 +132,18 @@ describe("local web approval", () => {
       allow: true,
       by: "human:hush-console"
     });
+  });
+
+  it("fails loud when the held tool call differs from the planned action", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "hush-approval-"));
+    const bridge = new WebApproval(directory, 5);
+
+    await expect(
+      bridge.decide({
+        ...request,
+        pending: { ...request.pending, tool: "redfish.other_operation" }
+      })
+    ).rejects.toThrow(/does not match planned action/u);
   });
 
   it("denies and removes the pending record when the web decision times out", async () => {

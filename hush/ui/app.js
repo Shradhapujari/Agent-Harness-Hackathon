@@ -16,6 +16,7 @@ const $ = (id) => document.getElementById(id);
 let lastStatus;
 let activeApprovalId;
 let activeApprovalRunId;
+let activeApprovalCallId;
 let toastTimer;
 
 function node(tag, className, text) {
@@ -167,12 +168,14 @@ function renderApproval(approval) {
   if (!approval?.action) {
     activeApprovalId = undefined;
     activeApprovalRunId = undefined;
+    activeApprovalCallId = undefined;
     drawer.classList.remove("open");
     drawer.setAttribute("aria-hidden", "true");
     return;
   }
   activeApprovalId = approval.action.id;
   activeApprovalRunId = approval.runId;
+  activeApprovalCallId = approval.pending?.toolCallId;
   const action = approval.action;
   $("approval-title").textContent = `${action.tool} is paused`;
   $("approval-summary").textContent = action.reason;
@@ -303,7 +306,8 @@ async function triggerIncident() {
 }
 
 async function decide(allow) {
-  if (!activeApprovalId || !activeApprovalRunId) return;
+  if (!activeApprovalId || !activeApprovalRunId || !activeApprovalCallId)
+    return;
   const reason = $("deny-reason").value.trim();
   if (!allow && !reason) {
     $("deny-reason").focus();
@@ -319,6 +323,7 @@ async function decide(allow) {
       body: JSON.stringify({
         runId: activeApprovalRunId,
         actionId: activeApprovalId,
+        toolCallId: activeApprovalCallId,
         allow,
         reason
       })
@@ -334,6 +339,7 @@ async function decide(allow) {
     $("deny-reason").value = "";
     activeApprovalId = undefined;
     activeApprovalRunId = undefined;
+    activeApprovalCallId = undefined;
     await refresh();
   } catch (error) {
     showToast(

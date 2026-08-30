@@ -1,10 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
   access,
   mkdir,
   readdir,
   readFile,
+  rename,
+  rm,
   stat,
   writeFile
 } from "node:fs/promises";
@@ -29,6 +32,7 @@ let incidentRunning = false;
 let processStartedAt: number | undefined;
 let processError: string | undefined;
 const output: string[] = [];
+const recordedDecisions = new Set<string>();
 
 type Json = Record<string, unknown>;
 
@@ -264,29 +268,67 @@ async function route(
       });
       return;
     }
-    if (
-      payload.allow === false &&
-      (typeof payload.reason !== "string" || payload.reason.trim() === "")
-    ) {
+    const reason =
+      typeof payload.reason === "string" ? payload.reason.trim() : undefined;
+    if (payload.allow === false && !reason) {
       json(response, 400, { error: "a reason is required to deny an action" });
+      return;
+    }
+    if (reason && reason.length > 300) {
+      json(response, 400, { error: "the decision reason is too long" });
       return;
     }
     const pending = (await readJson(
       join(runsDirectory, runId, "approval-pending.json")
-    )) as { action?: { id?: string } } | undefined;
+    )) as
+      | {
+          runId?: string;
+          action?: { id?: string };
+          pending?: {
+            toolCallId?: string;
+            tool?: string;
+            args?: unknown;
+          };
+        }
+      | undefined;
     if (
-      (pending as { runId?: string } | undefined)?.runId !== runId ||
-      pending?.action?.id !== payload.actionId
+      pending?.runId !== runId ||
+      pending.action?.id !== payload.actionId ||
+      typeof payload.toolCallId !== "string" ||
+      pending.pending?.toolCallId !== payload.toolCallId
     ) {
       json(response, 409, { error: "this action is no longer pending" });
       return;
     }
+    const decisionKey = `${runId}:${payload.actionId}:${payload.toolCallId}`;
+    if (recordedDecisions.has(decisionKey)) {
+      json(response, 409, { error: "this action already has a decision" });
+      return;
+    }
+    recordedDecisions.add(decisionKey);
     await mkdir(join(runsDirectory, runId), { recursive: true });
-    await writeFile(
-      join(runsDirectory, runId, "approval-decision.json"),
-      `${JSON.stringify({ actionId: payload.actionId, allow: payload.allow, reason: payload.reason })}\n`,
-      "utf8"
-    );
+    const decisionPath = join(runsDirectory, runId, "approval-decision.json");
+    const temporaryPath = `${decisionPath}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(
+        temporaryPath,
+        `${JSON.stringify({
+          runId,
+          actionId: payload.actionId,
+          toolCallId: payload.toolCallId,
+          tool: pending.pending.tool,
+          args: pending.pending.args,
+          allow: payload.allow,
+          reason
+        })}\n`,
+        "utf8"
+      );
+      await rename(temporaryPath, decisionPath);
+    } catch (error) {
+      recordedDecisions.delete(decisionKey);
+      await rm(temporaryPath, { force: true });
+      throw error;
+    }
     json(response, 202, { ok: true });
     return;
   }
