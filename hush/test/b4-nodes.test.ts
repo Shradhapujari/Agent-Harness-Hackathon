@@ -103,6 +103,50 @@ describe("B4 route and execute", () => {
     );
     expect(executed.actions?.[0].status).toBe("executed");
   });
+
+  it("sends the approved rationale as the reset_system reason", async () => {
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({
+        text: "",
+        events: [],
+        pendingApproval: {
+          threadId: "thread-1",
+          toolCallId: "call-1",
+          tool: "redfish.reset_system",
+          args: {}
+        }
+      }),
+      approve: vi.fn().mockResolvedValue({ text: "", events: [] })
+    };
+    const destructive = action({
+      kind: "destructive",
+      tool: "redfish.reset_system",
+      args: { system_id: "R4-N04", reset_type: "ForceRestart" },
+      reason: "the kernel is hung and a graceful restart was denied"
+    });
+    await requestApproval(
+      state({
+        sessionId: "session-1",
+        pendingActionId: destructive.id,
+        actions: [destructive],
+        evidence: [evidence("redfish")]
+      }),
+      context(harness, {
+        decide: vi.fn().mockResolvedValue({
+          allow: false,
+          by: "human:test",
+          at: now.toISOString(),
+          reason: "not now"
+        })
+      })
+    );
+    // The tool rejects a call without `reason`, and the gate has already been
+    // shown to a human by then, so the argument has to be there on the way in.
+    expect(harness.turn.mock.calls[0]?.[1]).toContain(
+      '"reason":"the kernel is hung and a graceful restart was denied"'
+    );
+  });
 });
 
 describe("B4 verification and report", () => {

@@ -57,6 +57,9 @@ def test_a_hang_looks_nothing_like_a_facility_failure() -> None:
     generated = alerts.hang_symptoms("hush-worker", "R4-N04", when=WHEN)
     assert {a["labels"].get("k8s_node") for a in generated if "k8s_node" in a["labels"]} == {"hush-worker"}
     assert len(generated) < len(alerts.crac_cascade(NODES, when=WHEN))
+    # Every symptom names the machine it belongs to: a silence scoped to that
+    # node has to be able to match all of them once the host is back (I3).
+    assert all(a["labels"].get("node") == "R4-N04" for a in generated)
 
 
 def test_alerts_carry_a_bounded_lifetime() -> None:

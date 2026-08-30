@@ -154,7 +154,7 @@ Each node: responsibility · reads · writes · tools allowed · limits · succe
 | N0 watch | D | Alertmanager `/api/v2/alerts` (controller HTTP) | `alerts`, `runId`, `timeline` | none | poll 5 s; STORM_MIN=6 firing inside one WINDOW_S=120 span | largest burst `≥ STORM_MIN` |
 | N1 triage | A | `alerts` (fingerprint, name, severity, labels, startsAt) | `sessionId`, `incident` | `alertmanager.*`, `correlate.correlate_alerts` | 1 turn; JSON parse retry ≤ 2 | `Incident` schema valid, `primary.length ≥ 1` |
 | N2 enrich | A + S | `incident` | `evidence[]` | subagents each get **one** server: S1 `redfish.*`, S2 `netbox.*`, S3 `kubernetes.get_*` + `prometheus.*` (+ optional S4 `brightdata.*`) | 1 turn; ≥ 3 subagents; each ≤ 8 tool calls (instructions) | ≥ 1 evidence per layer redfish/netbox/kubernetes |
-| N3 plan | A | `incident`, `evidence` summaries, prior `actions` with `denied` reasons | `actions[]` (ranked) | no tools (reasoning only; `skills` runbook) | 1 turn; ACTIONS_MAX=4 | every action has ≥ 1 evidence ref, valid tool name from registry |
+| N3 plan | A + D | `incident`, `evidence` summaries, prior `actions` with `denied` reasons | `actions[]` (ranked) | no tools (reasoning only; `skills` runbook) | 1 turn; ACTIONS_MAX=4 | every action has ≥ 1 evidence ref, valid tool name from registry; D: a close-out `alertmanager.silence_alerts` scoped to `rootCause.scope`, ranked last, is appended when the model proposes none (I3) |
 | N4 route | D | next `proposed` action | — | none | — | `kind` decided by **registry**, not by the model (see §5 policy) |
 | N5 exec safe | A | one action | `actions[i].status/result` | `kubernetes.cordon_node`, `kubernetes.drain_node`, `kubernetes.uncordon_node` | 1 turn; 1 tool call expected | tool result `ok=true` |
 | N6 approval | H | pending `tool.approval_required` event | `actions[i].decidedBy/decidedAt/status` | TrueForge approval on `redfish.reset_system` | APPROVAL_TIMEOUT_S=600 → deny | `user.tool_approval` recorded with human id |
@@ -220,6 +220,12 @@ Recovered predicate (deterministic, `hush/src/nodes/verify.ts`):
 // host_hang:    node PowerState=="On" && Hung==false && k8s node Ready==True
 // any kind:     no *firing* alert in incident.primary ∪ incident.symptoms (Alertmanager)
 ```
+
+The alert half of that predicate is what the N3 close-out action answers: the
+incident's symptom alerts are silenced, scoped to the incident, by a planned and
+evidence-linked action recorded in the report — never by the controller writing
+to Alertmanager on its own. Silenced alerts leave the active set, so the
+predicate's substance stays the fresh BMC and Kubernetes probes above it (I3).
 
 Routing principle: the model *proposes* an action's kind, but N4 overrides it
 from the tool registry. A model can never downgrade a destructive tool to
@@ -302,15 +308,25 @@ Metric names exported by mock-bmc `/metrics`: `hush_inlet_temp_celsius{system}`,
 ### Tool registry (Person B, `hush/src/registry.ts`) — the routing authority
 
 ```ts
-export const REGISTRY: Record<string, { kind: "safe" | "destructive" | "read"; server: string }> = {
+export const REGISTRY: Record<
+  string,
+  { kind: "safe" | "destructive" | "read"; server: string; injects?: readonly "reason"[] }
+> = {
   "kubernetes.cordon_node":   { kind: "safe", server: "kubernetes" },
   "kubernetes.drain_node":    { kind: "safe", server: "kubernetes" },
   "kubernetes.uncordon_node": { kind: "safe", server: "kubernetes" },
   "alertmanager.silence_alerts": { kind: "safe", server: "alertmanager" },
-  "redfish.reset_system":     { kind: "destructive", server: "redfish" },
+  "redfish.reset_system":     { kind: "destructive", server: "redfish", injects: ["reason"] },
 };
 // anything else proposed by the model is rejected at E3
 ```
+
+N5/N6/N7 build every call as `{...action.args, ...injected, idempotency_key,
+run_id}`. `injects` names the arguments the controller owns rather than the
+model: `reason` on `redfish.reset_system` is `action.reason`, the sentence the
+operator read at the approval gate, so the SEL entry records the text a human
+approved. A required argument left to the plan is a call the tool rejects after
+approval (I3).
 
 ## 6. TrueForge agent spec (`hush/agent.json`, applied by `scripts/register.ts`)
 
