@@ -25,4 +25,4 @@ A reviewer can identify service readiness, current graph node, root cause, evide
 
 ## Direction
 
-Use the incident-observatory world in `DESIGN.md`. The signal field is dominant, the relay is chronological, and approval is the only interruptive surface.
+Use the midnight incident-room world in `DESIGN.md`. The causal signal field is dominant, the relay is chronological, and approval is the only interruptive surface.

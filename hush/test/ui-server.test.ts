@@ -38,7 +38,7 @@ describe("local UI server", () => {
     ]);
 
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("Incident observatory");
+    expect(await page.text()).toContain("Incident control");
     expect(status.status).toBe(200);
     await expect(status.json()).resolves.toMatchObject({
       server: { ok: true },
