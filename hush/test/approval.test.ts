@@ -3,9 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   TerminalApproval,
   UiApproval,
+  WebApproval,
   createApprovalBridge,
   type UiDecisionPoller
 } from "../src/approval.js";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { LIMITS } from "../src/graph.js";
 import { action, incident } from "./helpers.js";
 
@@ -37,6 +41,10 @@ describe("approval bridge selection", () => {
     const poll = vi.fn() as unknown as UiDecisionPoller;
 
     expect(createApprovalBridge("ui", poll)).toBeInstanceOf(UiApproval);
+  });
+
+  it("serves the local web approval bridge by name", () => {
+    expect(createApprovalBridge("web")).toBeInstanceOf(WebApproval);
   });
 
   it("refuses ui mode without a poller rather than swapping in the terminal", () => {
@@ -79,5 +87,46 @@ describe("approval bridge selection", () => {
     const result = await bridge.decide({ ...request, timeoutS: 0.01 });
 
     expect(result).toMatchObject({ allow: false, reason: "approval timeout" });
+  });
+});
+
+describe("local web approval", () => {
+  it("publishes the exact pending action and accepts only its decision", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "hush-approval-"));
+    const bridge = new WebApproval(directory, 5);
+    const decision = bridge.decide({ ...request, timeoutS: 1 });
+    const pendingPath = join(directory, request.runId, "approval-pending.json");
+    let pending: { action?: { id?: string } } | undefined;
+    for (let attempt = 0; attempt < 20 && !pending; attempt += 1) {
+      try {
+        pending = JSON.parse(
+          await readFile(pendingPath, "utf8")
+        ) as typeof pending;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+    }
+    expect(pending?.action?.id).toBe(request.action.id);
+    await writeFile(
+      join(directory, request.runId, "approval-decision.json"),
+      JSON.stringify({ actionId: request.action.id, allow: true }),
+      "utf8"
+    );
+
+    await expect(decision).resolves.toMatchObject({
+      allow: true,
+      by: "human:hush-console"
+    });
+  });
+
+  it("denies and removes the pending record when the web decision times out", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "hush-approval-"));
+    const bridge = new WebApproval(directory, 5);
+    const result = await bridge.decide({ ...request, timeoutS: 0.01 });
+
+    expect(result).toMatchObject({ allow: false, reason: "approval timeout" });
+    await expect(
+      readFile(join(directory, request.runId, "approval-pending.json"), "utf8")
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

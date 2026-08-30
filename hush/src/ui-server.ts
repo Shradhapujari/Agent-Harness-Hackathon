@@ -1,0 +1,272 @@
+import { spawn, type ChildProcess } from "node:child_process";
+import { createReadStream } from "node:fs";
+import {
+  access,
+  mkdir,
+  readdir,
+  readFile,
+  stat,
+  writeFile
+} from "node:fs/promises";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse
+} from "node:http";
+import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const port = Number(process.env.HUSH_UI_PORT ?? 4173);
+const bmcUrl = process.env.HUSH_BMC_URL ?? "http://127.0.0.1:8100";
+const alertmanagerUrl =
+  process.env.HUSH_ALERTMANAGER_URL ?? "http://127.0.0.1:9093";
+const publicDirectory = fileURLToPath(new URL("../ui/", import.meta.url));
+const runsDirectory = resolve("runs");
+const startedAt = new Date().toISOString();
+let incidentProcess: ChildProcess | undefined;
+let processStartedAt: number | undefined;
+let processError: string | undefined;
+const output: string[] = [];
+
+type Json = Record<string, unknown>;
+
+function json(response: ServerResponse, status: number, value: unknown): void {
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8"
+  });
+  response.end(JSON.stringify(value));
+}
+
+async function body(request: IncomingMessage): Promise<Json> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  if (chunks.length === 0) return {};
+  const value = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("request body must be an object");
+  }
+  return value as Json;
+}
+
+async function fetchStatus(
+  url: string
+): Promise<{ ok: boolean; detail?: string }> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(1400) });
+    return {
+      ok: response.ok,
+      ...(!response.ok ? { detail: `HTTP ${response.status}` } : {})
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "unreachable"
+    };
+  }
+}
+
+async function latestRunId(): Promise<string | undefined> {
+  try {
+    const entries = await readdir(runsDirectory, { withFileTypes: true });
+    const candidates = await Promise.all(
+      entries
+        .filter(
+          (entry) =>
+            entry.isDirectory() && /^inc-\d{8}-[0-9a-fA-F]{4}$/.test(entry.name)
+        )
+        .map(async (entry) => ({
+          name: entry.name,
+          time: (await stat(join(runsDirectory, entry.name))).mtimeMs
+        }))
+    );
+    const minimumTime =
+      incidentProcess?.exitCode === null && processStartedAt
+        ? processStartedAt - 1_000
+        : 0;
+    return candidates
+      .filter((candidate) => candidate.time >= minimumTime)
+      .sort((left, right) => right.time - left.time)[0]?.name;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readJson(path: string): Promise<unknown | undefined> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as unknown;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+async function status(): Promise<Json> {
+  const runId = await latestRunId();
+  const [bmc, alertmanager] = await Promise.all([
+    fetchStatus(`${bmcUrl}/chaos/status`),
+    fetchStatus(`${alertmanagerUrl}/-/ready`)
+  ]);
+  return {
+    server: { ok: true, startedAt },
+    services: { bmc, alertmanager },
+    process: {
+      running: Boolean(incidentProcess && incidentProcess.exitCode === null),
+      startedAt: processStartedAt
+        ? new Date(processStartedAt).toISOString()
+        : undefined,
+      error: processError,
+      output: output.slice(-40)
+    },
+    runId,
+    state: runId
+      ? await readJson(join(runsDirectory, runId, "state.json"))
+      : undefined,
+    approval: runId
+      ? await readJson(join(runsDirectory, runId, "approval-pending.json"))
+      : undefined
+  };
+}
+
+function startIncident(scenario: "hang" | "crac"): void {
+  if (incidentProcess && incidentProcess.exitCode === null) {
+    throw new Error("an incident is already running");
+  }
+  output.length = 0;
+  processError = undefined;
+  processStartedAt = Date.now();
+  incidentProcess = spawn(
+    process.execPath,
+    ["--import", "tsx", "src/cli.ts", "incident", "--scenario", scenario],
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, HUSH_APPROVAL_MODE: "web" },
+      stdio: ["ignore", "pipe", "pipe"]
+    }
+  );
+  const capture = (chunk: Buffer) => {
+    output.push(...chunk.toString("utf8").split(/\r?\n/u).filter(Boolean));
+    if (output.length > 200) output.splice(0, output.length - 200);
+  };
+  incidentProcess.stdout?.on("data", capture);
+  incidentProcess.stderr?.on("data", capture);
+  incidentProcess.on("error", (error) => {
+    processError = error.message;
+  });
+  incidentProcess.on("exit", (code) => {
+    if (code && code !== 0)
+      processError = `incident process exited with code ${code}`;
+  });
+}
+
+async function inject(scenario: "hang" | "crac"): Promise<unknown> {
+  const path = scenario === "hang" ? "/chaos/hang" : "/chaos/crac-failure";
+  const payload = scenario === "hang" ? { system: "R4-N04" } : { delta_c: 14 };
+  const response = await fetch(`${bmcUrl}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(4000)
+  });
+  if (!response.ok)
+    throw new Error(`mock BMC returned HTTP ${response.status}`);
+  return response.json();
+}
+
+async function route(
+  request: IncomingMessage,
+  response: ServerResponse
+): Promise<void> {
+  const url = new URL(
+    request.url ?? "/",
+    `http://${request.headers.host ?? "localhost"}`
+  );
+  if (request.method === "GET" && url.pathname === "/api/status") {
+    json(response, 200, await status());
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/incidents") {
+    const payload = await body(request);
+    if (payload.scenario !== "hang" && payload.scenario !== "crac") {
+      json(response, 400, { error: "scenario must be hang or crac" });
+      return;
+    }
+    const injection = await inject(payload.scenario);
+    startIncident(payload.scenario);
+    json(response, 202, { ok: true, scenario: payload.scenario, injection });
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/approval") {
+    const payload = await body(request);
+    const runId = await latestRunId();
+    if (
+      !runId ||
+      typeof payload.actionId !== "string" ||
+      typeof payload.allow !== "boolean"
+    ) {
+      json(response, 400, {
+        error: "run, actionId, and allow decision are required"
+      });
+      return;
+    }
+    if (payload.allow === false && typeof payload.reason !== "string") {
+      json(response, 400, { error: "a reason is required to deny an action" });
+      return;
+    }
+    const pending = (await readJson(
+      join(runsDirectory, runId, "approval-pending.json")
+    )) as { action?: { id?: string } } | undefined;
+    if (pending?.action?.id !== payload.actionId) {
+      json(response, 409, { error: "this action is no longer pending" });
+      return;
+    }
+    await mkdir(join(runsDirectory, runId), { recursive: true });
+    await writeFile(
+      join(runsDirectory, runId, "approval-decision.json"),
+      `${JSON.stringify({ actionId: payload.actionId, allow: payload.allow, reason: payload.reason })}\n`,
+      "utf8"
+    );
+    json(response, 202, { ok: true });
+    return;
+  }
+  await serveStatic(url.pathname, response);
+}
+
+async function serveStatic(
+  pathname: string,
+  response: ServerResponse
+): Promise<void> {
+  const requested = pathname === "/" ? "index.html" : pathname.slice(1);
+  const path = resolve(publicDirectory, requested);
+  const fromPublic = relative(resolve(publicDirectory), path);
+  if (fromPublic.startsWith("..") || isAbsolute(fromPublic)) {
+    json(response, 404, { error: "not found" });
+    return;
+  }
+  try {
+    await access(path);
+    const types: Record<string, string> = {
+      ".html": "text/html; charset=utf-8",
+      ".css": "text/css; charset=utf-8",
+      ".js": "text/javascript; charset=utf-8",
+      ".svg": "image/svg+xml"
+    };
+    response.writeHead(200, {
+      "content-type": types[extname(path)] ?? "application/octet-stream"
+    });
+    createReadStream(path).pipe(response);
+  } catch {
+    json(response, 404, { error: "not found" });
+  }
+}
+
+export const server = createServer((request, response) => {
+  route(request, response).catch((error: unknown) => {
+    json(response, 500, {
+      error: error instanceof Error ? error.message : "unexpected error"
+    });
+  });
+});
+
+server.listen(port, "127.0.0.1", () => {
+  console.log(`Hush console ready at http://127.0.0.1:${port}`);
+});

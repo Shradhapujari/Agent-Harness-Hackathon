@@ -1,6 +1,8 @@
 import { createInterface } from "node:readline/promises";
 import { userInfo } from "node:os";
 import { stdin, stdout } from "node:process";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 import type { ApprovalBridge } from "./graph.js";
 
@@ -80,11 +82,86 @@ export class UiApproval implements ApprovalBridge {
   }
 }
 
+export class WebApproval implements ApprovalBridge {
+  constructor(
+    private readonly runsDirectory = "runs",
+    private readonly pollMilliseconds = 350
+  ) {}
+
+  async decide(request: Request): Promise<Decision> {
+    const pendingPath = join(
+      this.runsDirectory,
+      request.runId,
+      "approval-pending.json"
+    );
+    const decisionPath = join(
+      this.runsDirectory,
+      request.runId,
+      "approval-decision.json"
+    );
+    await mkdir(dirname(pendingPath), { recursive: true });
+    await rm(decisionPath, { force: true });
+    await writeFile(
+      pendingPath,
+      `${JSON.stringify(
+        {
+          runId: request.runId,
+          sessionId: request.sessionId,
+          action: request.action,
+          incident: request.incident,
+          evidence: request.evidence,
+          requestedAt: new Date().toISOString()
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+    const deadline = Date.now() + request.timeoutS * 1000;
+    try {
+      while (Date.now() < deadline) {
+        try {
+          const raw = JSON.parse(
+            await readFile(decisionPath, "utf8")
+          ) as Partial<Decision> & { actionId?: string };
+          if (
+            raw.actionId !== request.action.id ||
+            typeof raw.allow !== "boolean"
+          ) {
+            throw new Error("approval decision does not match pending action");
+          }
+          return {
+            allow: raw.allow,
+            by: "human:hush-console",
+            at: new Date().toISOString(),
+            ...(raw.reason ? { reason: String(raw.reason).slice(0, 300) } : {})
+          };
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.pollMilliseconds)
+        );
+      }
+      return {
+        allow: false,
+        by: "human:hush-console",
+        at: new Date().toISOString(),
+        reason: "approval timeout"
+      };
+    } finally {
+      await rm(pendingPath, { force: true });
+      await rm(decisionPath, { force: true });
+    }
+  }
+}
+
 export function createApprovalBridge(
   mode = process.env.HUSH_APPROVAL_MODE ?? "terminal",
   uiPoller?: UiDecisionPoller
 ): ApprovalBridge {
   if (mode === "terminal") return new TerminalApproval();
+  if (mode === "web") return new WebApproval();
   if (mode === "ui" && uiPoller) return new UiApproval(uiPoller);
   // Falling back to the terminal here used to look harmless. It is not: the
   // operator who asked for `ui` is watching the TrueForge chat while the run

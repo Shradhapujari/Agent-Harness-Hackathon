@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "incident": "node --env-file-if-exists=../.env --import tsx src/cli.ts incident",
     "resume": "node --env-file-if-exists=../.env --import tsx src/cli.ts resume",
+    "ui": "node --env-file-if-exists=../.env --import tsx src/ui-server.ts",
     "register": "node --env-file-if-exists=../.env --import tsx scripts/register.ts"
   },
   "dependencies": {
