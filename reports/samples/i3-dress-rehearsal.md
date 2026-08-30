@@ -9,14 +9,15 @@ outcome: recovered
 2026-08-30T00:22:54.342Z · N2 · subagents_spawned · {"count":3}
 2026-08-30T00:23:00.760Z · N3 · plan_created · {"accepted":2,"stripped":true}
 2026-08-30T00:23:00.762Z · N4 · action_routed · {"actionId":"act-1","kind":"destructive"}
-2026-08-30T00:23:20.363Z · N6 · denied · {"actionId":"act-1","by":"human:shradha","reason":"a graceful restart cannot reach a hung kernel"}
+2026-08-30T00:23:20.363Z · N6 · denied · {"actionId":"act-1","by":"human:operator","reason":"a graceful restart cannot reach a hung kernel"}
 2026-08-30T00:23:24.315Z · N3 · plan_created · {"accepted":2,"stripped":true}
 2026-08-30T00:23:24.317Z · N4 · action_routed · {"actionId":"act-3","kind":"destructive"}
-2026-08-30T00:23:34.934Z · N6 · approved · {"actionId":"act-3","by":"human:shradha"}
+2026-08-30T00:23:34.934Z · N6 · approved · {"actionId":"act-3","by":"human:operator"}
 2026-08-30T00:23:36.871Z · N7 · action_executed · "act-3"
 2026-08-30T00:23:36.873Z · N4 · action_routed · {"actionId":"act-4","kind":"safe"}
 2026-08-30T00:23:39.670Z · N5 · action_executed · "act-4"
 2026-08-30T00:23:51.590Z · N8 · verification · {"recovered":true,"modelSummary":"Fresh BMC state confirms recovery: R4-N04 is powered on, healthy, and no longer hung. No active incident alerts remain. Kubernetes does not corroborate node recovery because a fresh lookup still reports R4-N04 not found; this disagreement is explicit, and the deterministic probe result remains authoritative."}
+2026-08-30T00:23:51.615Z · N10 · report_written
 
 ## Alerts
 
@@ -40,12 +41,12 @@ total 9 · primary 1 · symptoms 8 · noise 0
 
 ## Actions
 
-| rank | tool | args | kind | status | decidedBy | decidedAt |
-|---:|---|---|---|---|---|---|
-| 1 | redfish.reset_system | {"system_id":"R4-N04","reset_type":"GracefulRestart","reason":"Recover the confirmed hung host with the least disruptive restart action; both PSUs and temperatures are healthy, while SEL records repeated HostHang events.","run_id":"inc-20260830-a311"} | destructive | denied | human:shradha | 2026-08-30T00:23:17.283Z |
-| 2 | alertmanager.silence_alerts | {"matchers":["rack=R4","node=R4-N04"],"duration_s":300,"comment":"Suppress residual alerts for the remediated R4-N04 host-hang incident after recovery verification.","run_id":"inc-20260830-a311"} | safe | skipped |  |  |
-| 1 | redfish.reset_system | {"system_id":"R4-N04","reset_type":"ForceRestart","reason":"Recover the confirmed host hang with a forced restart because the graceful restart was denied as unable to reach the hung kernel.","run_id":"inc-20260830-a311"} | destructive | executed | human:shradha | 2026-08-30T00:23:34.933Z |
-| 2 | alertmanager.silence_alerts | {"matchers":["rack=R4","node=R4-N04"],"duration_s":300,"comment":"Suppress residual alerts for the R4-N04 host-hang incident after recovery verification.","run_id":"inc-20260830-a311"} | safe | executed |  |  |
+| rank | tool | args | reason | kind | status | decidedBy | decidedAt |
+|---:|---|---|---|---|---|---|---|
+| 1 | redfish.reset_system | {"system_id":"R4-N04","reset_type":"GracefulRestart","reason":"Recover the confirmed hung host with the least disruptive restart action; both PSUs and temperatures are healthy, while SEL records repeated HostHang events.","run_id":"inc-20260830-a311"} | A graceful restart is the least disruptive useful recovery action for the confirmed host hang. | destructive | denied | human:operator | 2026-08-30T00:23:17.283Z |
+| 2 | alertmanager.silence_alerts | {"matchers":["rack=R4","node=R4-N04"],"duration_s":300,"comment":"Suppress residual alerts for the remediated R4-N04 host-hang incident after recovery verification.","run_id":"inc-20260830-a311"} | Lowest-ranked cleanup action to stop residual paging for this incident's rack and node after remediation is verified. | safe | skipped |  |  |
+| 1 | redfish.reset_system | {"system_id":"R4-N04","reset_type":"ForceRestart","reason":"Recover the confirmed host hang with a forced restart because the graceful restart was denied as unable to reach the hung kernel.","run_id":"inc-20260830-a311"} | A forced restart is the next recovery rung after the denied graceful restart and is supported by the live BMC hung-state and repeated HostHang SEL evidence. | destructive | executed | human:operator | 2026-08-30T00:23:34.933Z |
+| 2 | alertmanager.silence_alerts | {"matchers":["rack=R4","node=R4-N04"],"duration_s":300,"comment":"Suppress residual alerts for the R4-N04 host-hang incident after recovery verification.","run_id":"inc-20260830-a311"} | Lowest-ranked cleanup action to stop residual paging for this incident's rack and node after remediation is verified. | safe | executed |  |  |
 
 ## Harness trace
 
@@ -55,5 +56,10 @@ Detailed turns, subagent threads, tool calls, and token events are in the run ev
 
 ## Verification
 
-[object Object]
+```json
+{
+  "recovered": true,
+  "modelSummary": "Fresh BMC state confirms recovery: R4-N04 is powered on, healthy, and no longer hung. No active incident alerts remain. Kubernetes does not corroborate node recovery because a fresh lookup still reports R4-N04 not found; this disagreement is explicit, and the deterministic probe result remains authoritative."
+}
+```
 

@@ -34,22 +34,44 @@ const schema = JSON.stringify({
 const CLOSEOUT_TOOL = "alertmanager.silence_alerts";
 const CLOSEOUT_S = 900;
 
+function scopeMatchers(state: Parameters<NodeFn>[0]): string[] {
+  const scope = state.incident!.rootCause.scope;
+  return [
+    ...(scope.rack === undefined ? [] : [`rack=${scope.rack}`]),
+    ...(scope.nodes.length === 1 ? [`node=${scope.nodes[0]}`] : [])
+  ];
+}
+
+// Alertmanager ANDs matchers, so a silence covers this incident only when every
+// matcher it carries is one the incident's own alerts satisfy. Fewer matchers is
+// broader and still covers; a matcher naming another rack or node covers
+// nothing here, so a plan carrying one is not a close-out however it is named.
+function covers(
+  proposal: z.infer<typeof Proposal>,
+  scoped: readonly string[]
+): boolean {
+  if (proposal.tool !== CLOSEOUT_TOOL) return false;
+  const matchers = proposal.args.matchers;
+  if (!Array.isArray(matchers) || matchers.length === 0) return false;
+  return matchers.every((matcher) => scoped.includes(String(matcher)));
+}
+
 function closeout(
   state: Parameters<NodeFn>[0],
   proposals: z.infer<typeof Proposal>[]
 ): z.infer<typeof Proposal> | undefined {
   if (proposals.length === 0) return undefined;
-  if (proposals.some((proposal) => proposal.tool === CLOSEOUT_TOOL))
-    return undefined;
-  const scope = state.incident!.rootCause.scope;
-  const matchers = [
-    `rack=${scope.rack}`,
-    ...(scope.nodes.length === 1 ? [`node=${scope.nodes[0]}`] : [])
-  ];
+  const scoped = scopeMatchers(state);
+  // Nothing to scope a silence to: a rack-less incident spanning several nodes
+  // cannot be covered by one ANDed matcher set, and a silence that matches more
+  // than the incident is worse than none. Verification then falls to the
+  // model's next plan rather than to a matcher the controller guessed.
+  if (scoped.length === 0) return undefined;
+  if (proposals.some((proposal) => covers(proposal, scoped))) return undefined;
   return {
     tool: CLOSEOUT_TOOL,
     args: {
-      matchers,
+      matchers: scoped,
       duration_s: CLOSEOUT_S,
       comment: `hush ${state.runId}: residual ${state.incident!.rootCause.kind} storm`
     },
@@ -145,13 +167,17 @@ export const plan: NodeFn = async (state, context) => {
         proposal.evidence.every((id) => evidenceIds.has(id))
     )
     .slice(0, LIMITS.ACTIONS_MAX);
+  // Sized against the full plan, then given room: a close-out dropped because
+  // the model filled every slot leaves the storm firing, which is the failure
+  // it exists to prevent. The lowest-ranked model action gives way instead.
   const appended = closeout(state, proposals);
   if (
     appended &&
-    !deniedKeys.has(`${appended.tool}:${stable(appended.args)}`) &&
-    proposals.length < LIMITS.ACTIONS_MAX
-  )
+    !deniedKeys.has(`${appended.tool}:${stable(appended.args)}`)
+  ) {
+    proposals.splice(LIMITS.ACTIONS_MAX - 1);
     proposals.push(appended);
+  }
   const actionIds = new Set(state.actions.map(({ id }) => id));
   let nextActionNumber = 1;
   const actions = proposals.map((proposal, index) => {

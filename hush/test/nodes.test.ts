@@ -580,6 +580,79 @@ describe("N3 plan", () => {
     });
   });
 
+  it("replaces the lowest-ranked action when the plan fills every slot", async () => {
+    // Dropping the close-out at the cap leaves the storm firing, which is the
+    // failure it exists to prevent (I3).
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({
+        text: fenced({
+          actions: Array.from({ length: 4 }, (_, index) => ({
+            tool: "kubernetes.drain_node",
+            args: { name: `node-${index}` },
+            reason: "Evacuate workloads.",
+            evidence: ["ev-redfish"]
+          }))
+        }),
+        events: []
+      })
+    };
+
+    const patch = await plan(
+      state({
+        sessionId: "session-1",
+        incident,
+        evidence: [evidence("redfish")]
+      }),
+      context(harness)
+    );
+
+    expect(patch.actions).toHaveLength(4);
+    expect(patch.actions?.[3]).toMatchObject({
+      tool: "alertmanager.silence_alerts",
+      rank: 4
+    });
+  });
+
+  it("appends its own close-out when the model's silence names another scope", async () => {
+    // Alertmanager ANDs matchers, so a silence carrying `rack=R2` clears
+    // nothing in R4 however it is named (I3).
+    const harness = {
+      openSession: vi.fn(),
+      turn: vi.fn().mockResolvedValue({
+        text: fenced({
+          actions: [
+            {
+              tool: "alertmanager.silence_alerts",
+              args: {
+                matchers: ["rack=R2"],
+                duration_s: 600,
+                comment: "wrong"
+              },
+              reason: "Silence the wrong rack.",
+              evidence: ["ev-redfish"]
+            }
+          ]
+        }),
+        events: []
+      })
+    };
+
+    const patch = await plan(
+      state({
+        sessionId: "session-1",
+        incident,
+        evidence: [evidence("redfish")]
+      }),
+      context(harness)
+    );
+
+    expect(patch.actions).toHaveLength(2);
+    expect(patch.actions?.[1]?.args).toMatchObject({
+      matchers: ["rack=R4", "node=R4-N04"]
+    });
+  });
+
   it("leaves the model's own silence alone", async () => {
     const harness = {
       openSession: vi.fn(),

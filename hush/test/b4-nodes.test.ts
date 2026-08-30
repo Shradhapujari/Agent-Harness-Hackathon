@@ -216,4 +216,35 @@ describe("B4 verification and report", () => {
     expect(markdown).toContain("## Harness trace");
     expect(markdown).toContain("outcome: recovered");
   });
+
+  it("records the verdict and the approved rationale, not [object Object]", () => {
+    const markdown = reportMarkdown(
+      state({
+        incident,
+        outcome: "recovered",
+        sessionId: "session-1",
+        alerts: [alert()],
+        evidence: [evidence("redfish")],
+        actions: [
+          action({
+            status: "executed",
+            reason: "Recover the confirmed hung host."
+          })
+        ],
+        timeline: [
+          {
+            ts: now.toISOString(),
+            nodeId: "N8",
+            event: "verification",
+            detail: { recovered: true, modelSummary: "BMC agrees." }
+          }
+        ]
+      })
+    );
+    expect(markdown).not.toContain("[object Object]");
+    expect(markdown).toContain('"recovered": true');
+    // The rationale the controller injects into redfish.reset_system lives in
+    // `reason`, not in `args`, so the report has to render it.
+    expect(markdown).toContain("Recover the confirmed hung host.");
+  });
 });
