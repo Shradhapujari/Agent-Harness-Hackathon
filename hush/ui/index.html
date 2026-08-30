@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#080b12" />
+    <meta name="theme-color" content="#010102" />
     <title>Hush · Incident control</title>
     <link rel="stylesheet" href="/styles.css" />
     <script type="module" src="/app.js"></script>
@@ -11,195 +11,222 @@
   <body>
     <header class="topbar">
       <a class="brand" href="#top" aria-label="Hush home">
-        <svg viewBox="0 0 34 24" aria-hidden="true">
-          <path d="M1 12h6l3-7 5 14 4-10 3 6h11" />
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="13" height="13" rx="3.5" />
+          <path d="M5.2 11V5m5.6 6V5m-5.6 3h5.6" />
         </svg>
         <span>Hush</span>
       </a>
-      <div class="system-state" aria-live="polite">
-        <span class="status-dot" id="global-dot"></span>
-        <span id="global-status">Connecting to local stack</span>
+
+      <div class="services" aria-label="Local stack readiness">
+        <span class="svc" id="svc-bmc"
+          ><i class="dot"></i>Mock BMC<b>Checking</b></span
+        >
+        <span class="svc" id="svc-alertmanager"
+          ><i class="dot"></i>Alertmanager<b>Checking</b></span
+        >
+        <span class="svc" id="svc-harness"
+          ><i class="dot"></i>Harness<b>Standing by</b></span
+        >
       </div>
-      <div class="clock" id="clock">--:--:--</div>
+
+      <div class="run-meta">
+        <code id="run-id">no run</code>
+        <span class="run-clock" id="elapsed">00:00</span>
+      </div>
     </header>
 
     <main id="top">
-      <section class="control-strip" aria-labelledby="control-title">
-        <div>
-          <h1 id="control-title">Incident control</h1>
-          <p>Trigger a known fault. Follow every agent, fact, and decision.</p>
+      <!-- 1 · What happened, and what Hush made of it -->
+      <section class="verdict" aria-labelledby="verdict-title">
+        <div class="verdict-bar">
+          <div>
+            <p class="eyebrow">Incident control</p>
+            <h1 id="verdict-title">Trigger one documented fault</h1>
+          </div>
+          <div class="scenario-control">
+            <label class="sr-only" for="scenario">Failure scenario</label>
+            <select id="scenario">
+              <option value="hang">Hung host · R4-N04</option>
+              <option value="crac">Cooling failure · Rack R4</option>
+            </select>
+            <button class="btn-primary" id="trigger" type="button">
+              <span id="trigger-label">Trigger alarm</span>
+            </button>
+          </div>
         </div>
-        <div class="scenario-control">
-          <label for="scenario">Failure scenario</label>
-          <select id="scenario">
-            <option value="hang">Hung host · R4-N04</option>
-            <option value="crac">Cooling failure · Rack R4</option>
-          </select>
-          <button class="primary-button" id="trigger" type="button">
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 2v10m0 0 4-4m-4 4L6 8M3 16h14" />
-            </svg>
-            <span id="trigger-label">Trigger alarm</span>
-          </button>
+
+        <div class="collapse" id="collapse">
+          <div class="figure">
+            <span class="figure-value" id="alarm-count">0</span>
+            <span class="figure-unit">alarms<br />firing</span>
+          </div>
+          <div class="figure-arrow" aria-hidden="true">
+            <svg viewBox="0 0 44 12"><path d="M0 6h40m0 0-5-5m5 5-5 5" /></svg>
+          </div>
+          <div class="figure">
+            <span class="figure-value" id="cause-count">0</span>
+            <span class="figure-unit">root<br />cause</span>
+          </div>
+
+          <div class="verdict-copy">
+            <h2 id="root-cause">Nominal baseline</h2>
+            <p id="root-scope">
+              No incident is active. Trigger a fault to watch the graph run end
+              to end.
+            </p>
+          </div>
+
+          <div class="confidence" id="confidence" hidden>
+            <span class="figure-unit">confidence</span>
+            <strong id="confidence-value">—</strong>
+            <div class="meter"><i id="confidence-bar"></i></div>
+          </div>
         </div>
+
+        <div class="split" id="split-bar" aria-hidden="true"></div>
+        <dl class="split-key" id="split-key"></dl>
       </section>
 
-      <div class="service-ribbon" aria-label="Local service status">
-        <div>
-          <span class="service-dot" id="bmc-dot"></span><strong>Mock BMC</strong
-          ><span id="bmc-label">Checking</span>
-        </div>
-        <div>
-          <span class="service-dot" id="alert-dot"></span
-          ><strong>Alertmanager</strong><span id="alert-label">Checking</span>
-        </div>
-        <div>
-          <span class="service-dot" id="harness-dot"></span
-          ><strong>Agent run</strong><span id="harness-label">Standing by</span>
-        </div>
-        <div class="run-identity">
-          <span>RUN</span><code id="run-id">—</code>
-        </div>
-      </div>
-
-      <section class="observatory" aria-label="Incident detail">
-        <div class="trace-panel">
-          <div class="panel-heading">
+      <!-- 2 · The storm, and the agent working it -->
+      <section class="deck">
+        <article class="panel storm" aria-labelledby="storm-title">
+          <header class="panel-head">
             <div>
-              <h2>Causal signal</h2>
-              <p id="trace-caption">Nominal baseline. No incident is active.</p>
+              <h2 id="storm-title">Alarm storm</h2>
+              <p id="storm-caption">
+                Every firing alert, placed on its real arrival time and
+                infrastructure layer.
+              </p>
             </div>
-            <span class="live-chip" id="live-chip">STANDBY</span>
-          </div>
-          <div class="trace-stage" id="trace-stage">
-            <svg
-              class="trace-svg"
-              viewBox="0 0 900 270"
-              preserveAspectRatio="none"
-              role="img"
-              aria-label="Incident signal trace"
-            >
-              <defs>
-                <pattern
-                  id="grid"
-                  width="50"
-                  height="45"
-                  patternUnits="userSpaceOnUse"
-                >
-                  <path d="M50 0H0V45" />
-                </pattern>
-              </defs>
-              <rect width="900" height="270" fill="url(#grid)" />
-              <path
-                class="trace trace-quiet"
-                d="M0 135 L130 135 L155 132 L180 137 L205 135 L350 135 L365 133 L380 136 L400 135 L570 135 L590 134 L610 136 L630 135 L900 135"
-              />
-              <path
-                class="trace trace-active"
-                id="active-trace"
-                d="M0 135 L95 135 L115 128 L130 143 L145 119 L162 153 L177 93 L194 173 L211 58 L228 201 L244 78 L260 179 L278 105 L294 156 L315 125 L335 141 L370 135 L420 135 L438 128 L454 146 L471 117 L490 157 L509 127 L528 141 L550 135 L900 135"
-              />
-              <line
-                class="cursor-line"
-                id="cursor-line"
-                x1="0"
-                x2="0"
-                y1="0"
-                y2="270"
-              />
-            </svg>
-            <div class="trace-label trace-label-top">CRITICAL</div>
-            <div class="trace-label trace-label-mid">NOMINAL</div>
-            <div class="trace-time">
-              <span>-120s</span><span>-60s</span><span>NOW</span>
-            </div>
-            <div class="epicenter" id="epicenter">
-              <span></span><b id="epicenter-label">Awaiting signal</b>
-            </div>
-          </div>
-          <div class="incident-finding" id="incident-finding">
-            <p>Root cause</p>
-            <h3>Nothing to resolve</h3>
-            <span>Trigger a local alarm to begin the investigation.</span>
-          </div>
-        </div>
+            <span class="chip" id="live-chip">Standby</span>
+          </header>
 
-        <aside class="agent-rail" aria-labelledby="agent-title">
-          <div class="panel-heading rail-heading">
-            <div>
-              <h2 id="agent-title">Agent relay</h2>
-              <p>Graph progress, in execution order.</p>
-            </div>
-            <span id="elapsed">00:00</span>
+          <div class="severity-strip" id="severity-strip"></div>
+
+          <div class="lanes" id="lanes">
+            <p class="empty">
+              Lanes fill from the lowest layer up as alerts arrive.
+            </p>
           </div>
-          <ol class="agent-list" id="agent-list"></ol>
-        </aside>
+          <div class="lane-axis" id="lane-axis" hidden>
+            <span id="axis-start">t0</span><span id="axis-mid"></span
+            ><span id="axis-end">now</span>
+          </div>
+
+          <div class="alarm-grid" id="alarm-grid"></div>
+        </article>
+
+        <article class="panel relay" aria-labelledby="relay-title">
+          <header class="panel-head">
+            <div>
+              <h2 id="relay-title">Agent graph</h2>
+              <p id="relay-caption">Eleven nodes, in execution order.</p>
+            </div>
+            <span class="chip" id="relay-position">N0 / N10</span>
+          </header>
+          <ol class="relay-list" id="relay-list"></ol>
+          <dl class="counters" id="counters"></dl>
+          <div id="outcome-slot"></div>
+        </article>
       </section>
 
-      <section class="lower-deck">
-        <div class="evidence-panel">
-          <div class="section-heading">
-            <div>
-              <h2>Evidence register</h2>
-              <p>Observed facts, separated by infrastructure layer.</p>
-            </div>
-            <span id="evidence-count">0 records</span>
+      <!-- 3 · The end-to-end record -->
+      <section class="panel" aria-labelledby="timeline-title">
+        <header class="panel-head">
+          <div>
+            <h2 id="timeline-title">Run timeline</h2>
+            <p>Every state transition the controller wrote, in order.</p>
           </div>
-          <div class="evidence-list" id="evidence-list">
-            <div class="empty-state">
-              Evidence will collect here as the agents inspect the rack.
-            </div>
-          </div>
-        </div>
-        <div class="action-panel">
-          <div class="section-heading">
-            <div>
-              <h2>Action ledger</h2>
-              <p>Every proposal, decision, and effect remains visible.</p>
-            </div>
-            <span id="action-count">0 actions</span>
-          </div>
-          <div class="action-list" id="action-list">
-            <div class="empty-state">No remediation has been proposed.</div>
-          </div>
-        </div>
+          <span class="chip" id="timeline-count">0 events</span>
+        </header>
+        <ol class="timeline" id="timeline">
+          <li class="empty">
+            The controller records each node transition here as it runs.
+          </li>
+        </ol>
       </section>
+
+      <!-- 4 · Facts and effects -->
+      <section class="deck deck-even">
+        <article class="panel" aria-labelledby="evidence-title">
+          <header class="panel-head">
+            <div>
+              <h2 id="evidence-title">Evidence</h2>
+              <p>Observed facts, by infrastructure layer.</p>
+            </div>
+            <span class="chip" id="evidence-count">0 records</span>
+          </header>
+          <div class="record-list" id="evidence-list">
+            <p class="empty">
+              Evidence collects here as the agents inspect the rack.
+            </p>
+          </div>
+        </article>
+
+        <article class="panel" aria-labelledby="action-title">
+          <header class="panel-head">
+            <div>
+              <h2 id="action-title">Action ledger</h2>
+              <p>Every proposal, decision, and effect stays visible.</p>
+            </div>
+            <span class="chip" id="action-count">0 actions</span>
+          </header>
+          <div class="record-list" id="action-list">
+            <p class="empty">No remediation has been proposed.</p>
+          </div>
+        </article>
+      </section>
+
+      <details class="stdout-panel">
+        <summary>Harness output</summary>
+        <pre id="stdout">Nothing yet.</pre>
+      </details>
     </main>
 
-    <section
-      class="approval-drawer"
+    <!-- The only interruptive surface -->
+    <aside
+      class="approval"
       id="approval-drawer"
+      role="dialog"
       aria-labelledby="approval-title"
+      aria-describedby="approval-summary"
       aria-hidden="true"
+      tabindex="-1"
     >
-      <div class="approval-signal"><span></span>HUMAN CHECKPOINT</div>
-      <div class="approval-copy">
-        <h2 id="approval-title">Destructive action paused</h2>
-        <p id="approval-summary">
-          Review the exact action and evidence before allowing Hush to continue.
-        </p>
-        <dl class="approval-facts" id="approval-facts"></dl>
-      </div>
-      <div class="approval-actions">
-        <label for="deny-reason"
-          >Decision note <span>required to deny</span></label
-        >
-        <input
-          id="deny-reason"
-          type="text"
-          maxlength="300"
-          placeholder="Why should the agent replan?"
-        />
-        <div>
-          <button type="button" class="deny-button" id="deny">
-            Deny & replan</button
-          ><button type="button" class="approve-button" id="approve">
-            Approve action
-          </button>
+      <div class="approval-inner">
+        <div class="approval-copy">
+          <p class="eyebrow accent">Human checkpoint</p>
+          <h2 id="approval-title">Destructive action paused</h2>
+          <p id="approval-summary">
+            Review the exact call and its evidence before Hush continues.
+          </p>
+          <dl class="approval-facts" id="approval-facts"></dl>
         </div>
-        <p>Approval applies only to this action and this run.</p>
+        <div class="approval-decide">
+          <label for="deny-reason"
+            >Decision note <span>required to deny</span></label
+          >
+          <input
+            id="deny-reason"
+            type="text"
+            maxlength="300"
+            placeholder="Why should the agent replan?"
+          />
+          <div class="approval-buttons">
+            <button type="button" class="btn-deny" id="deny">
+              Deny &amp; replan
+            </button>
+            <button type="button" class="btn-primary" id="approve">
+              Approve action
+            </button>
+          </div>
+          <p class="approval-note">
+            Approval applies to this action, in this run, once.
+          </p>
+        </div>
       </div>
-    </section>
+    </aside>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </body>

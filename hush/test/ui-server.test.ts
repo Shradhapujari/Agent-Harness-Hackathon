@@ -38,18 +38,43 @@ describe("local UI server", () => {
   });
 
   it("serves the operator console and reports unavailable dependencies", async () => {
-    const [page, styles, status] = await Promise.all([
+    const [page, styles, script, status] = await Promise.all([
       fetch(`${baseUrl}/`),
       fetch(`${baseUrl}/styles.css`),
+      fetch(`${baseUrl}/app.js`),
       fetch(`${baseUrl}/api/status`)
     ]);
 
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("Incident control");
+    const html = await page.text();
+    expect(html).toContain("Incident control");
+    // The regions the operator has to read to answer "how many alarms, and
+    // what is the agent doing about them" all have to be on the one page.
+    for (const region of [
+      'id="alarm-count"',
+      'id="split-bar"',
+      'id="lanes"',
+      'id="relay-list"',
+      'id="relay-caption"',
+      'id="timeline"',
+      'id="approval-drawer"'
+    ])
+      expect(html).toContain(region);
+
+    // The checkpoint appears from a poll rather than a click, so it has to
+    // announce itself and be able to take focus.
+    expect(html).toMatch(/id="approval-drawer"[\s\S]*?role="dialog"/u);
+    expect(html).toMatch(/id="approval-drawer"[\s\S]*?tabindex="-1"/u);
+
     expect(styles.status).toBe(200);
     const css = await styles.text();
-    expect(css).toContain("transform-box: view-box");
-    expect(css).toContain("transform: translateX(100%)");
+    // Linear's canvas token and the approval drawer's off-screen rest state.
+    expect(css).toContain("--canvas: #010102");
+    expect(css).toContain("transform: translateY(100%)");
+
+    expect(script.status).toBe(200);
+    expect(script.headers.get("content-type")).toContain("text/javascript");
+
     expect(status.status).toBe(200);
     await expect(status.json()).resolves.toMatchObject({
       server: { ok: true },

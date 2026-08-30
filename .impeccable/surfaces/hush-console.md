@@ -25,4 +25,4 @@ A reviewer can identify service readiness, current graph node, root cause, evide
 
 ## Direction
 
-Use the midnight incident-room world in `DESIGN.md`. The causal signal field is dominant, the relay is chronological, and approval is the only interruptive surface.
+Use the Linear-grounded system in `DESIGN.md`. The alarm count and the single root cause lead the page, the storm is plotted from real alert timestamps and layers, the graph relay is chronological, and approval is the only interruptive surface.
