@@ -38,13 +38,18 @@ describe("local UI server", () => {
   });
 
   it("serves the operator console and reports unavailable dependencies", async () => {
-    const [page, status] = await Promise.all([
+    const [page, styles, status] = await Promise.all([
       fetch(`${baseUrl}/`),
+      fetch(`${baseUrl}/styles.css`),
       fetch(`${baseUrl}/api/status`)
     ]);
 
     expect(page.status).toBe(200);
     expect(await page.text()).toContain("Incident control");
+    expect(styles.status).toBe(200);
+    const css = await styles.text();
+    expect(css).toContain("transform-box: view-box");
+    expect(css).toContain("transform: translateX(100%)");
     expect(status.status).toBe(200);
     await expect(status.json()).resolves.toMatchObject({
       server: { ok: true },

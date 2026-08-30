@@ -339,6 +339,7 @@ code {
   opacity: 0;
   stroke: var(--warning);
   stroke-width: 1;
+  transform-box: view-box;
 }
 .cursor-line.visible {
   opacity: 0.8;
@@ -349,7 +350,7 @@ code {
     transform: translateX(0);
   }
   to {
-    transform: translateX(900px);
+    transform: translateX(100%);
   }
 }
 .trace-label {
