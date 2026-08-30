@@ -121,7 +121,7 @@
           <header class="panel-head">
             <div>
               <h2 id="relay-title">Agent graph</h2>
-              <p>Eleven nodes, in execution order.</p>
+              <p id="relay-caption">Eleven nodes, in execution order.</p>
             </div>
             <span class="chip" id="relay-position">N0 / N10</span>
           </header>
@@ -188,8 +188,11 @@
     <aside
       class="approval"
       id="approval-drawer"
+      role="dialog"
       aria-labelledby="approval-title"
+      aria-describedby="approval-summary"
       aria-hidden="true"
+      tabindex="-1"
     >
       <div class="approval-inner">
         <div class="approval-copy">

@@ -55,10 +55,16 @@ describe("local UI server", () => {
       'id="split-bar"',
       'id="lanes"',
       'id="relay-list"',
+      'id="relay-caption"',
       'id="timeline"',
       'id="approval-drawer"'
     ])
       expect(html).toContain(region);
+
+    // The checkpoint appears from a poll rather than a click, so it has to
+    // announce itself and be able to take focus.
+    expect(html).toMatch(/id="approval-drawer"[\s\S]*?role="dialog"/u);
+    expect(html).toMatch(/id="approval-drawer"[\s\S]*?tabindex="-1"/u);
 
     expect(styles.status).toBe(200);
     const css = await styles.text();

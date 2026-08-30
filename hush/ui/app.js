@@ -77,6 +77,9 @@ const $ = (id) => document.getElementById(id);
 let lastStatus;
 let activeApproval;
 let toastTimer;
+// Whether the checkpoint currently holds focus, and where to hand it back.
+let approvalOpen = false;
+let returnFocusTo;
 
 function node(tag, className, text) {
   const element = document.createElement(tag);
@@ -264,6 +267,14 @@ function renderSeverity(alerts) {
  * width and are marked with a dashed rule, so the reader sees "nothing
  * happened here" rather than losing the burst.
  */
+// The plotting band inside a lane track, as percentages, and how co-timed pips
+// fan within it. Every pip must land inside [PIP_MIN_X, PIP_MIN_X + PIP_SPAN];
+// the track clips anything past its edge.
+const PIP_MIN_X = 4;
+const PIP_SPAN = 92;
+const PIP_ROWS = 3;
+const PIP_STEP = 1.6;
+
 const IDLE_GAP = 0.12;
 const COLLAPSED_GAP = 0.06;
 // A whole storm can land inside ten seconds; nothing in there is "idle", so
@@ -340,31 +351,51 @@ function renderLanes(alerts, incident) {
 
       for (const at of scale.breaks) {
         const rule = node("i", "lane-break");
-        rule.style.left = `${4 + at * 92}%`;
+        rule.style.left = `${PIP_MIN_X + at * PIP_SPAN}%`;
         track.append(rule);
       }
 
       /*
        * hush-chaos posts a whole layer's symptoms in one call, so a dozen
-       * alerts can share a millisecond and land on the same pixel. Seat
-       * same-instant alerts across three sub-rows, then step right, so the
-       * count on the lane still matches the marks the reader can see.
+       * alerts can share a millisecond and land on the same pixel. Group the
+       * collisions and fan each group across three sub-rows, centred on its own
+       * timestamp and held inside the track: a burst at the very last instant
+       * of the storm — six Kubernetes alerts per node, three nodes — would
+       * otherwise run off the right edge and be clipped, and the marks a reader
+       * can count have to match the lane's own count.
        */
-      const seats = new Map();
+      const groups = new Map();
       for (const alert of [...inLane].sort(
         (left, right) => Date.parse(left.startsAt) - Date.parse(right.startsAt)
       )) {
-        const pip = node("b", "pip");
-        const left = 4 + scale.at(Date.parse(alert.startsAt)) * 92;
-        const bucket = Math.round(left);
-        const seat = seats.get(bucket) ?? 0;
-        seats.set(bucket, seat + 1);
-        pip.style.left = `${left + Math.floor(seat / 3) * 1.6}%`;
-        pip.style.top = `calc(50% + ${((seat % 3) - 1) * 7}px)`;
-        pip.dataset.severity = alert.severity;
-        pip.dataset.role = roleOf(alert.fingerprint, incident);
-        pip.title = `${alert.name} · ${alert.labels.node ?? alert.labels.instance ?? layer} · ${alert.severity} · ${clock(alert.startsAt)}`;
-        track.append(pip);
+        const base =
+          PIP_MIN_X + scale.at(Date.parse(alert.startsAt)) * PIP_SPAN;
+        const key = Math.round(base);
+        if (!groups.has(key)) groups.set(key, { base, members: [] });
+        groups.get(key).members.push(alert);
+      }
+
+      for (const { base, members } of groups.values()) {
+        const columns = Math.ceil(members.length / PIP_ROWS);
+        // Tighten the step rather than overflow if a single instant ever
+        // collects more alerts than the track can hold at the normal spacing.
+        const step =
+          columns > 1 ? Math.min(PIP_STEP, PIP_SPAN / (columns - 1)) : PIP_STEP;
+        const width = (columns - 1) * step;
+        const start = Math.min(
+          Math.max(base - width / 2, PIP_MIN_X),
+          PIP_MIN_X + PIP_SPAN - width
+        );
+
+        members.forEach((alert, seat) => {
+          const pip = node("b", "pip");
+          pip.style.left = `${start + Math.floor(seat / PIP_ROWS) * step}%`;
+          pip.style.top = `calc(50% + ${((seat % PIP_ROWS) - 1) * 7}px)`;
+          pip.dataset.severity = alert.severity;
+          pip.dataset.role = roleOf(alert.fingerprint, incident);
+          pip.title = `${alert.name} · ${alert.labels.node ?? alert.labels.instance ?? layer} · ${alert.severity} · ${clock(alert.startsAt)}`;
+          track.append(pip);
+        });
       }
 
       row.append(
@@ -448,30 +479,46 @@ function renderStorm(state, running) {
 /* ── 2b · Agent graph ───────────────────────────────────────────── */
 
 /*
- * Per-node timings, taken from the order the controller actually ran in rather
- * than from the graph's numbering. The two differ: a run that gates on approval
- * logs N4, N6, N7, N8, then N5, then N10, so measuring each node against the
- * next *numbered* node would bill the whole human approval wait to N4.
+ * Per-node timings.
  *
- * A node with no timeline entry never did work — N9 stays silent on a run that
- * recovered — so the relay can tell "ran" from "skipped" instead of assuming
- * everything before the cursor completed.
+ * A timeline entry carries the clock reading from the moment its node *returns*
+ * — `route` builds `timeline(context.clock(), "N4", …)` inside the patch it
+ * hands back, and `run` only merges that patch afterwards. So a `ts` closes an
+ * interval rather than opening one: the time between two consecutive entries
+ * belongs to the node that wrote the *later* one. Subtracting the other way
+ * round shifts every duration one node earlier and hands N4 the human approval
+ * wait that N6 actually spent.
+ *
+ * Nodes are also revisited — a replan returns to N3 and N4, verification retries
+ * re-enter N8 — so intervals accumulate per node instead of being taken once.
+ * Several entries from one node in a single visit simply split that node's own
+ * interval into pieces that add back up.
+ *
+ * A node with no entry at all never did work (N9 stays silent on a run that
+ * recovered), which is what lets the relay tell "ran" from "skipped" rather than
+ * assuming everything before the cursor completed.
  */
-function nodeTimings(timeline = []) {
+function nodeTimings(timeline = [], runStartedAt, liveNode) {
+  const events = timeline
+    .map((entry) => ({ node: entry.nodeId, at: Date.parse(entry.ts) }))
+    .filter((event) => Number.isFinite(event.at))
+    .sort((left, right) => left.at - right.at);
+
   const entered = new Map();
-  for (const entry of timeline) {
-    const at = Date.parse(entry.ts);
-    if (!Number.isFinite(at)) continue;
-    if (!entered.has(entry.nodeId) || at < entered.get(entry.nodeId))
-      entered.set(entry.nodeId, at);
+  const spent = new Map();
+  let previous = Date.parse(runStartedAt ?? "");
+  if (!Number.isFinite(previous)) previous = events[0]?.at;
+
+  for (const event of events) {
+    if (!entered.has(event.node)) entered.set(event.node, event.at);
+    spent.set(event.node, (spent.get(event.node) ?? 0) + (event.at - previous));
+    previous = event.at;
   }
 
-  const sequence = [...entered.entries()].sort(
-    ([, left], [, right]) => left - right
-  );
-  const spent = new Map();
-  for (let index = 0; index < sequence.length - 1; index += 1)
-    spent.set(sequence[index][0], sequence[index + 1][1] - sequence[index][1]);
+  // The live node has not closed its interval yet; run it up to now so the
+  // relay ticks while the operator watches.
+  if (liveNode && Number.isFinite(previous))
+    spent.set(liveNode, (spent.get(liveNode) ?? 0) + (Date.now() - previous));
 
   return { entered, spent };
 }
@@ -479,7 +526,12 @@ function nodeTimings(timeline = []) {
 function renderRelay(state, running) {
   const complete = state?.node === "DONE";
   const activeIndex = complete ? GRAPH.length : (NODE_INDEX[state?.node] ?? -1);
-  const { entered, spent } = nodeTimings(state?.timeline);
+  const liveNode = running ? state?.node : undefined;
+  const { entered, spent } = nodeTimings(
+    state?.timeline,
+    state?.runStartedAt,
+    liveNode
+  );
 
   $("relay-position").textContent = complete
     ? "Complete"
@@ -487,8 +539,16 @@ function renderRelay(state, running) {
       ? `${state.node} / N10`
       : "Not started";
 
+  // The caption carries the running node's own description, so the panel says
+  // what the agent is doing right now rather than restating the graph.
+  const activeDetail = GRAPH[activeIndex]?.[2];
+  $("relay-caption").textContent =
+    running && activeDetail
+      ? activeDetail
+      : "Eleven nodes, in execution order.";
+
   $("relay-list").replaceChildren(
-    ...GRAPH.map(([id, title], index) => {
+    ...GRAPH.map(([id, title, detail], index) => {
       const row = node("li", "relay-step");
       const at = entered.get(id);
       const isActive = index === activeIndex && running;
@@ -497,17 +557,12 @@ function renderRelay(state, running) {
       else if (at !== undefined) row.classList.add("done");
       else if (complete || index < activeIndex) row.classList.add("skipped");
 
-      let timing = "";
-      if (at !== undefined) {
-        const ms = spent.get(id);
-        // The last node to log has no successor to measure against; while it is
-        // still the live node, measure it against now instead.
-        if (ms !== undefined) timing = duration(ms);
-        else if (isActive) timing = duration(Date.now() - at);
-      } else if (row.classList.contains("skipped")) {
+      const ms = spent.get(id);
+      let timing = ms !== undefined ? duration(ms) : "";
+      if (at === undefined && row.classList.contains("skipped"))
         timing = "skipped";
-      }
 
+      row.title = `${id} · ${title} — ${detail}`;
       row.append(
         node("span", "relay-marker"),
         node("span", "relay-node", id),
@@ -672,6 +727,14 @@ function renderApproval(approval) {
   const drawer = $("approval-drawer");
   if (!approval?.action) {
     activeApproval = undefined;
+    // Hand focus back before hiding, so `aria-hidden` is never set on a subtree
+    // that still holds the focused element.
+    if (approvalOpen) {
+      approvalOpen = false;
+      if (drawer.contains(document.activeElement))
+        (returnFocusTo?.isConnected ? returnFocusTo : document.body).focus?.();
+      returnFocusTo = undefined;
+    }
     drawer.classList.remove("open");
     drawer.setAttribute("aria-hidden", "true");
     return;
@@ -707,7 +770,30 @@ function renderApproval(approval) {
 
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
-  if (document.activeElement === document.body) $("approve").focus();
+
+  /*
+   * The checkpoint appears from a poll, not from a click, so nothing would move
+   * focus to it on its own and a keyboard or screen-reader operator could keep
+   * working the page behind a surface that is holding the run. Move focus to
+   * the drawer the first time it opens — the `aria-labelledby`/`describedby`
+   * pair announces which call is paused and why.
+   *
+   * Only on the transition: `render` runs on every poll, and stealing focus
+   * each time would empty the caret out of the denial note as it is typed.
+   *
+   * The background is deliberately left reachable rather than inert: the
+   * evidence and action registers behind the drawer are exactly what an
+   * operator needs to read before deciding.
+   */
+  if (!approvalOpen) {
+    approvalOpen = true;
+    returnFocusTo =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement !== document.body
+        ? document.activeElement
+        : undefined;
+    drawer.focus();
+  }
 }
 
 /* ── Wiring ─────────────────────────────────────────────────────── */
