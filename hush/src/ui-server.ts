@@ -189,14 +189,24 @@ const CHAOS_TIMEOUT_MS = 120_000;
 
 async function chaos(...args: string[]): Promise<string> {
   return new Promise<string>((resolveChaos, rejectChaos) => {
+    // Own process group: `uv` is a launcher, and a signal delivered to it alone
+    // leaves the Python underneath running — still pausing nodes and posting
+    // alerts long after the request gave up on it.
     const child = spawn(chaosCommand, [...chaosArguments, ...args], {
       cwd: workspaceRoot,
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true
     });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {
-      child.kill("SIGKILL");
+      if (child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      }
       rejectChaos(new Error(`hush-chaos ${args.join(" ")} timed out`));
     }, CHAOS_TIMEOUT_MS);
     child.stdout?.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
@@ -228,7 +238,17 @@ async function inject(scenario: "hang" | "crac"): Promise<unknown> {
   // next storm (I3). This is the "run it between takes" step from the README,
   // done for the operator rather than asked of them.
   await chaos("clear");
-  const stdout = await chaos(scenario);
+  let stdout: string;
+  try {
+    stdout = await chaos(scenario);
+  } catch (error) {
+    // A scenario that fails partway has already moved the lab: `hang` hangs the
+    // machine before it pauses the node, and both scenarios post their symptoms
+    // after that. Leaving it there hands the next take a half-injected fault,
+    // so roll back before reporting why the injection failed.
+    await clearInjectedFault();
+    throw error;
+  }
   try {
     return JSON.parse(stdout) as unknown;
   } catch {
